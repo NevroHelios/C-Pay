@@ -1,0 +1,61 @@
+{
+  "cli": {
+    "version": ">= 16.28.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dilsljhgrcxvevzzagrg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_q8N3NJ4rnzYa2eMZNQ4yxA_DPLtggCw",
+        "EXPO_PUBLIC_STELLAR_NETWORK": "testnet",
+        "EXPO_PUBLIC_STELLAR_HORIZON_URL": "https://horizon-testnet.stellar.org",
+        "EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "",
+        "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
+        "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
+        "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet",
+        "EXPO_PUBLIC_DEV_MODE": "false",
+        "EXPO_PUBLIC_DEV_PHONE": "+911234567890",
+        "EXPO_PUBLIC_DEV_OTP": "123456"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dilsljhgrcxvevzzagrg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_q8N3NJ4rnzYa2eMZNQ4yxA_DPLtggCw",
+        "EXPO_PUBLIC_STELLAR_NETWORK": "testnet",
+        "EXPO_PUBLIC_STELLAR_HORIZON_URL": "https://horizon-testnet.stellar.org",
+        "EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "",
+        "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
+        "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
+        "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet",
+        "EXPO_PUBLIC_DEV_MODE": "false"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "internal"
+      }
+    }
+  }
+}

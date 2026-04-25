@@ -1,0 +1,179 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  ScrollView,
+  Image,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../constants/theme';
+import { Button } from '../components';
+
+const FONT_SIZES = TYPOGRAPHY.sizes;
+const { height } = Dimensions.get('window');
+const isSmallDevice = height < 700;
+
+interface OnboardingScreenProps {
+  navigation: any;
+}
+
+export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
+  const handleGetStarted = () => {
+    navigation.navigate('PhoneVerification');
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Image
+            source={require('../../assets/cpay_logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>C-Pay</Text>
+          <Text style={styles.subtitle}>Pay in INR, settled on Stellar</Text>
+        </View>
+
+        {/* Features */}
+        <View style={styles.featuresContainer}>
+          <FeatureItem 
+            icon="shield-checkmark-outline"
+            title="Secure & Private" 
+            description="Your wallet, your keys. All data encrypted locally."
+          />
+          <FeatureItem 
+            icon="flash-outline"
+            title="Instant Payments" 
+            description="Scan QR, tap pay. Transactions in seconds."
+          />
+          <FeatureItem 
+            icon="card-outline"
+            title="No Fee Hassle" 
+            description="Network fees are handled for you. You just send money in INR."
+          />
+          <FeatureItem 
+            icon="qr-code-outline"
+            title="Simple UX" 
+            description="Scan, authenticate, done. Just like UPI."
+          />
+        </View>
+      </ScrollView>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Button title="Get Started" onPress={handleGetStarted} size="lg" fullWidth />
+        <Text style={styles.disclaimer}>
+          Stellar testnet - no real money
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+interface FeatureItemProps {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+const FeatureItem: React.FC<FeatureItemProps> = ({ icon, title, description }) => (
+  <View style={styles.featureItem}>
+    <View style={styles.featureIcon}>
+      <Ionicons name={icon as any} size={22} color={COLORS.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.featureTitle}>{title}</Text>
+      <Text style={styles.featureDescription}>{description}</Text>
+    </View>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: isSmallDevice ? SPACING.md : SPACING.xl,
+    paddingBottom: SPACING.sm,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: isSmallDevice ? SPACING.sm : SPACING.lg,
+  },
+  logo: {
+    width: isSmallDevice ? 72 : 96,
+    height: isSmallDevice ? 72 : 96,
+    borderRadius: isSmallDevice ? 36 : 48,
+    marginBottom: isSmallDevice ? SPACING.sm : SPACING.md,
+  },
+  title: {
+    fontSize: isSmallDevice ? FONT_SIZES.xl : FONT_SIZES.xxl,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  subtitle: {
+    fontSize: isSmallDevice ? FONT_SIZES.xs : FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  featuresContainer: {
+    paddingBottom: SPACING.sm,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: isSmallDevice ? SPACING.sm : SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.sm,
+  },
+  featureIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryLight,
+    marginRight: SPACING.md,
+  },
+  featureTitle: {
+    fontSize: isSmallDevice ? FONT_SIZES.sm : FONT_SIZES.md,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  featureDescription: {
+    fontSize: isSmallDevice ? FONT_SIZES.xs : FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    lineHeight: isSmallDevice ? 16 : 18,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: isSmallDevice ? SPACING.sm : SPACING.md,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  disclaimer: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+});

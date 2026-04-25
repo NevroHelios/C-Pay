@@ -1,0 +1,29 @@
+# Gradle cache and build files (causes lock issues on Windows)
+android/.gradle
+android/build
+android/app/build
+
+# Node modules
+node_modules
+
+# Build outputs
+dist
+build
+
+# Cache directories
+.expo
+.expo-shared
+
+# Environment files
+.env.local
+.env.production
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo

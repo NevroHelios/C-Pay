@@ -1,0 +1,289 @@
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SplashScreen } from '../screens/SplashScreen';
+import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { PhoneVerificationScreen } from '../screens/PhoneVerificationScreen';
+import { CreatePINScreen } from '../screens/CreatePINScreen';
+import { ConfirmPINScreen } from '../screens/ConfirmPINScreen';
+import { ChangePINScreen } from '../screens/ChangePINScreen';
+import { ForgotPINScreen } from '../screens/ForgotPINScreen';
+import { BiometricSetupScreen } from '../screens/BiometricSetupScreen';
+import { LoginScreen } from '../screens/LoginScreen';
+import { HomeScreen } from '../screens/HomeScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { ScanScreen } from '../screens/ScanScreen';
+import { PaymentConfirmScreen } from '../screens/PaymentConfirmScreen';
+import { QRGeneratorScreen } from '../screens/QRGeneratorScreen';
+import { TransactionHistoryScreen } from '../screens/TransactionHistoryScreen';
+import { MerchantRegistrationScreen } from '../screens/MerchantRegistrationScreen';
+import { MerchantDashboardScreen } from '../screens/MerchantDashboardScreen';
+import { MerchantQRGeneratorScreen } from '../screens/MerchantQRGeneratorScreen';
+import { MerchantGlobalQRScreen } from '../screens/MerchantGlobalQRScreen';
+import { MerchantTransactionsScreen } from '../screens/MerchantTransactionsScreen';
+import { SendMoneyScreen } from '../screens/SendMoneyScreen';
+import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
+import { PaymentProcessingScreen } from '../screens/PaymentProcessingScreen';
+import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
+import { PaymentFailureScreen } from '../screens/PaymentFailureScreen';
+import { PaymentQRData } from '../utils/qrCode';
+import { COLORS } from '../constants/theme';
+
+type RootStackParamList = {
+  Splash: undefined;
+  Onboarding: undefined;
+  PhoneVerification: undefined;
+  CreatePIN: { phoneNumber: string };
+  ConfirmPIN: { pin: string; phoneNumber: string };
+  ProfileSetup: { walletAddress: string; phoneNumber: string };
+  ChangePIN: undefined;
+  ForgotPIN: undefined;
+  BiometricSetup: undefined;
+  Login: undefined;
+  MainTabs: undefined;
+  Scan: { returnTo?: string };
+  SendMoney: { recipientAddress?: string; amount?: string; recipientName?: string; note?: string; hideBalance?: boolean };
+  PaymentConfirm: { paymentData: PaymentQRData };
+  PaymentProcessing: { amount: string; recipientName: string; recipientAddress: string };
+  PaymentSuccess: { transactionHash: string; amount: string; recipientName: string; recipientAddress: string; processingTime?: number; timestamp?: string; note?: string; isMerchantPayment?: boolean };
+  PaymentFailure: { amount: string; recipientName: string; recipientAddress: string; errorMessage?: string; errorReason?: string; timestamp?: string };
+  QRGenerator: undefined;
+  TransactionHistory: { highlightTransaction?: string };
+  MerchantRegistration: undefined;
+  MerchantDashboard: undefined;
+  MerchantQRGenerator: undefined;
+  MerchantGlobalQR: undefined;
+  MerchantTransactions: undefined;
+};
+
+type MainTabsParamList = {
+  Home: undefined;
+  ScanPlaceholder: undefined;
+  Profile: undefined;
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<MainTabsParamList>();
+
+const MainTabs = () => (
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      headerShown: true,
+      tabBarActiveTintColor: COLORS.primary,
+      tabBarInactiveTintColor: '#9ca3af',
+      tabBarStyle: {
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+        paddingBottom: 5,
+        paddingTop: 5,
+        height: 60,
+        backgroundColor: '#ffffff',
+      },
+      tabBarShowLabel: route.name !== 'ScanPlaceholder',
+    })}
+  >
+    <Tab.Screen
+      name="Home"
+      component={HomeScreen}
+      options={{
+        tabBarLabel: 'Home',
+        tabBarIcon: ({ color, focused }) => (
+          <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+        ),
+        headerTitle: 'C-Pay',
+      }}
+    />
+    <Tab.Screen
+      name="ScanPlaceholder"
+      component={View}
+      listeners={({ navigation }) => ({
+        tabPress: (e) => {
+          e.preventDefault();
+          const parent = navigation.getParent();
+          if (parent) {
+            parent.navigate('Scan' as never);
+          }
+        },
+      })}
+      options={{
+        tabBarLabel: '',
+        tabBarIcon: ({ focused }) => (
+          <View style={styles.scanButton}>
+            <View style={[styles.scanButtonInner, focused && styles.scanButtonFocused]}>
+              <Ionicons name="scan" size={26} color={COLORS.textInverse} />
+            </View>
+          </View>
+        ),
+        headerShown: false,
+      }}
+    />
+    <Tab.Screen
+      name="Profile"
+      component={ProfileScreen}
+      options={{
+        tabBarLabel: 'Profile',
+        tabBarIcon: ({ color, focused }) => (
+          <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+        ),
+        headerTitle: 'Profile',
+      }}
+    />
+  </Tab.Navigator>
+);
+
+export const Navigation = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+        initialRouteName="Splash"
+      >
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="PhoneVerification" component={PhoneVerificationScreen} />
+        <Stack.Screen name="CreatePIN" component={CreatePINScreen} />
+        <Stack.Screen name="ConfirmPIN" component={ConfirmPINScreen} />
+        <Stack.Screen 
+          name="ProfileSetup" 
+          component={ProfileSetupScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen name="ChangePIN" component={ChangePINScreen} />
+        <Stack.Screen 
+          name="ForgotPIN" 
+          component={ForgotPINScreen}
+          options={{
+            headerShown: true,
+            headerTitle: 'Reset PIN',
+          }}
+        />
+        <Stack.Screen name="BiometricSetup" component={BiometricSetupScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="Scan" component={ScanScreen} />
+        <Stack.Screen 
+          name="SendMoney" 
+          component={SendMoneyScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="PaymentConfirm" 
+          component={PaymentConfirmScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="PaymentProcessing" 
+          component={PaymentProcessingScreen as any}
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen 
+          name="PaymentSuccess" 
+          component={PaymentSuccessScreen as any}
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen 
+          name="PaymentFailure" 
+          component={PaymentFailureScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="QRGenerator" 
+          component={QRGeneratorScreen}
+          options={{
+            headerShown: true,
+            headerTitle: 'QR Generator (Testing)',
+          }}
+        />
+        <Stack.Screen 
+          name="TransactionHistory" 
+          component={TransactionHistoryScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="MerchantRegistration" 
+          component={MerchantRegistrationScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="MerchantDashboard" 
+          component={MerchantDashboardScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="MerchantQRGenerator" 
+          component={MerchantQRGeneratorScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="MerchantGlobalQR" 
+          component={MerchantGlobalQRScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen 
+          name="MerchantTransactions" 
+          component={MerchantTransactionsScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+const styles = StyleSheet.create({
+  scanButton: {
+    top: -20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  scanButtonFocused: {
+    backgroundColor: COLORS.primaryDark,
+    transform: [{ scale: 1.1 }],
+  },
+});

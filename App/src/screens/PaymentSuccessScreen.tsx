@@ -1,0 +1,440 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { TransactionDetailModal, TransactionDetail } from '../components/TransactionDetailModal';
+
+const { width, height } = Dimensions.get('window');
+
+interface PaymentSuccessScreenProps {
+  navigation: any;
+  route: {
+    params: {
+      transactionId: string;
+      transactionHash: string;
+      fromAddress: string;
+      amount: string;
+      recipientName: string;
+      recipientAddress: string;
+      processingTime?: number; // in seconds
+      timestamp?: string;
+      note?: string;
+      isMerchantPayment?: boolean;
+    };
+  };
+}
+
+export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const {
+    transactionId,
+    transactionHash,
+    fromAddress,
+    amount,
+    recipientName,
+    recipientAddress,
+    processingTime = 2,
+    timestamp,
+    note,
+    isMerchantPayment = false,
+  } = route.params;
+
+  const [currentTime] = useState(
+    timestamp || new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+  );
+
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const receiptRef = useRef(null);
+
+  // Animations
+  const scaleValue = useRef(new Animated.Value(0)).current;
+  const fadeValue = useRef(new Animated.Value(0)).current;
+  const checkmarkScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(checkmarkScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeValue, {
+        toValue: 1,
+        duration: 500,
+        delay: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const handleViewTransactionDetails = () => {
+    setShowTransactionModal(true);
+  };
+
+  const handleDone = () => {
+    navigation.navigate('MainTabs', { screen: 'Home' });
+  };
+
+  const handleShare = async () => {
+    try {
+      if (!receiptRef.current) return;
+
+      // Capture the receipt as image
+      const uri = await captureRef(receiptRef, {
+        format: 'png',
+        quality: 1,
+      });
+
+      // Share the image
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share Payment Receipt',
+        });
+      }
+    } catch (error) {
+      console.error('Error sharing receipt:', error);
+    }
+  };
+
+  // Transaction data for modal
+  const transactionData: TransactionDetail = {
+    transaction_id: transactionId,
+    tx_hash: transactionHash,
+    from_address: fromAddress,
+    to_address: recipientAddress,
+    amount: amount, // Amount is already in INR (1:1 with tokens)
+    status: 'success',
+    created_at: new Date().toISOString(),
+    merchant_name: isMerchantPayment ? recipientName : undefined,
+    transaction_type: isMerchantPayment ? 'merchant' : 'personal',
+  };
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#00D68F', '#00C882', '#00A86B']}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.content}>
+          {/* Success Icon & Title */}
+          <Animated.View
+            style={[
+              styles.topSection,
+              {
+                opacity: fadeValue,
+                transform: [{ scale: scaleValue }],
+              },
+            ]}
+          >
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark" size={46} color={COLORS.success} />
+            </View>
+            <Text style={styles.successTitle}>Payment Successful</Text>
+            <Text style={styles.amountText}>₹{amount}</Text>
+          </Animated.View>
+
+          {/* Receipt Card - Wrapped for receipt capture */}
+          <Animated.View
+            style={[
+              {
+                opacity: fadeValue,
+              },
+            ]}
+          >
+            <View ref={receiptRef} collapsable={false} style={styles.receiptCard}>
+              {/* Receipt Header with App Name */}
+              <View style={styles.receiptHeader}>
+                <View style={styles.receiptBrand}>
+                  <Ionicons name="card-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.receiptAppName}>C-Pay</Text>
+                </View>
+                <Text style={styles.receiptStatus}>Payment Successful</Text>
+              </View>
+
+              {/* Amount - Prominent Display */}
+              <View style={styles.receiptAmountSection}>
+                <Text style={styles.receiptAmountLabel}>AMOUNT PAID</Text>
+                <Text style={styles.receiptAmountValue}>₹{amount}</Text>
+              </View>
+
+              <View style={styles.receiptDivider} />
+
+              {/* Transaction Details */}
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>To</Text>
+                <Text style={styles.receiptValue} numberOfLines={1}>{recipientName}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Transaction ID</Text>
+                <Text style={styles.receiptValue}>{transactionId}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Date & Time</Text>
+                <Text style={styles.receiptValue}>{currentTime}</Text>
+              </View>
+              {note && (
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Note</Text>
+                  <Text style={styles.receiptValue} numberOfLines={1}>{note}</Text>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* Action Buttons */}
+          <Animated.View
+            style={[
+              styles.actionButtons,
+              {
+                opacity: fadeValue,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleViewTransactionDetails}
+              activeOpacity={0.8}
+            >
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="receipt-outline" size={18} color={COLORS.textInverse} />
+                <Text style={styles.actionButtonText}>Details</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleShare}
+              activeOpacity={0.8}
+            >
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="share-social-outline" size={18} color={COLORS.textInverse} />
+                <Text style={styles.actionButtonText}>Share</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleDone}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryButtonText}>Done</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        {/* Transaction Detail Modal */}
+        <TransactionDetailModal
+          visible={showTransactionModal}
+          transaction={transactionData}
+          onClose={() => setShowTransactionModal(false)}
+        />
+      </LinearGradient>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? SPACING.xxl + 30 : SPACING.xxl + 10,
+    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    justifyContent: 'space-between',
+  },
+  // Top Section - Icon, Title, Amount
+  topSection: {
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.textInverse,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.textInverse,
+    marginBottom: SPACING.sm,
+    letterSpacing: 0.3,
+  },
+  amountText: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: COLORS.textInverse,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  // Receipt Card
+  receiptCard: {
+    backgroundColor: COLORS.textInverse,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  receiptHeader: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  receiptBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: 4,
+  },
+  receiptAppName: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  receiptStatus: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: '#00D68F',
+  },
+  receiptAmountSection: {
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    backgroundColor: '#f8f9fc',
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.md,
+  },
+  receiptAmountLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: 1.2,
+  },
+  receiptAmountValue: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#667EEA',
+    letterSpacing: 0.5,
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: '#e8e8e8',
+    marginVertical: SPACING.sm,
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: SPACING.xs + 2,
+  },
+  receiptLabel: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  receiptValue: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.text,
+    fontWeight: '700',
+    flex: 1.5,
+    textAlign: 'right',
+  },
+  // Action Buttons
+  actionButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingTop: SPACING.md,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm + 2,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  actionButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.textInverse,
+  },
+  actionButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: COLORS.textInverse,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    color: '#00A86B',
+    letterSpacing: 0.5,
+  },
+});

@@ -1,0 +1,30 @@
+{
+  "name": "cryptopay-stellar-rail",
+  "version": "2.0.0",
+  "description": "Stellar asset and payment rail for C-Pay",
+  "main": "src/stellarRail.js",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "create:keypairs": "node scripts/create-keypairs.js",
+    "setup:testnet": "node scripts/setup-testnet-asset.js",
+    "contract:build": "stellar contract build --manifest-path contracts/cpay_payments/Cargo.toml --optimize --out-dir target/stellar",
+    "deploy:contract": "node scripts/deploy-contract.js"
+  },
+  "keywords": [
+    "stellar",
+    "payments",
+    "issued-assets",
+    "soroban",
+    "stellar-asset-contract"
+  ],
+  "author": "CryptoPay",
+  "license": "MIT",
+  "dependencies": {
+    "@stellar/stellar-sdk": "^15.0.1",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "expo": {
+    "name": "C-Pay",
+    "slug": "cryptopay",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/cpay_logo.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/cpay_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6366f1"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cryptopay.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "C-Pay needs camera access to scan QR codes for payments",
+        "NSLocationWhenInUseUsageDescription": "C-Pay uses your location to secure transactions",
+        "NSFaceIDUsageDescription": "Use Face ID to quickly and securely access your wallet"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/cpay_logo.png",
+        "backgroundColor": "#6366f1"
+      },
+      "package": "com.cryptopay.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/cpay_logo.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "C-Pay needs camera access to scan QR codes for payments"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "C-Pay uses your location to secure transactions"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Use Face ID to quickly and securely access your wallet"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow C-Pay to save QR codes to your photos.",
+          "savePhotosPermission": "Allow C-Pay to save QR codes to your photos.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3c7a4ef7-ad99-42d0-8b88-0ee8e28542c9"
+      },
+      "EXPO_PUBLIC_STELLAR_NETWORK": "testnet",
+      "EXPO_PUBLIC_STELLAR_HORIZON_URL": "https://horizon-testnet.stellar.org",
+      "EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
+      "EXPO_PUBLIC_STELLAR_RELAYER_URL": "",
+      "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
+      "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
+      "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet"
+    }
+  }
+}

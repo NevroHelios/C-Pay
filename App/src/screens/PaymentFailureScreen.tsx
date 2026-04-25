@@ -1,0 +1,402 @@
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+
+const { width } = Dimensions.get('window');
+
+interface PaymentFailureScreenProps {
+  navigation: any;
+  route: {
+    params: {
+      amount: string;
+      recipientName: string;
+      recipientAddress: string;
+      errorMessage?: string;
+      errorReason?: string;
+      timestamp?: string;
+    };
+  };
+}
+
+export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const {
+    amount,
+    recipientName,
+    recipientAddress,
+    errorMessage = 'Transaction failed',
+    errorReason = 'Unable to complete the transaction. Please try again.',
+    timestamp,
+  } = route.params;
+
+  const [currentTime] = React.useState(
+    timestamp || new Date().toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+  );
+
+  // Animations
+  const shakeValue = useRef(new Animated.Value(0)).current;
+  const scaleValue = useRef(new Animated.Value(0)).current;
+  const fadeValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Shake animation for error icon
+    Animated.sequence([
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(shakeValue, {
+          toValue: 10,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeValue, {
+          toValue: -10,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeValue, {
+          toValue: 10,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeValue, {
+          toValue: 0,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // Fade in content
+    Animated.timing(fadeValue, {
+      toValue: 1,
+      duration: 400,
+      delay: 200,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handleTryAgain = () => {
+    navigation.goBack();
+  };
+
+  const handleGoHome = () => {
+    navigation.navigate('MainTabs', { screen: 'Home' });
+  };
+
+  const handleContactSupport = () => {
+    // Navigate to support or show contact options
+    navigation.navigate('MainTabs', { screen: 'Profile' });
+  };
+
+  // Determine error type and suggestions
+  const getErrorSuggestions = () => {
+    const suggestions: string[] = [];
+    
+    if (errorReason.toLowerCase().includes('insufficient')) {
+      suggestions.push('Check your account balance');
+      suggestions.push('Add funds to your wallet');
+    } else if (errorReason.toLowerCase().includes('network')) {
+      suggestions.push('Check your internet connection');
+      suggestions.push('Try again in a few moments');
+    } else if (errorReason.toLowerCase().includes('fee')) {
+      suggestions.push('Payment network is temporarily busy');
+      suggestions.push('Try again in a few moments');
+    } else {
+      suggestions.push('Check your internet connection');
+      suggestions.push('Verify recipient details');
+      suggestions.push('Try again in a few moments');
+    }
+    
+    return suggestions;
+  };
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#FF5C5C', '#E85050', '#D32F2F']}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.content}>
+          {/* Compact Error Header */}
+          <Animated.View
+            style={[
+              styles.headerSection,
+              {
+                opacity: fadeValue,
+                transform: [
+                  { scale: scaleValue },
+                  { translateX: shakeValue },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.compactIconCircle}>
+              <Text style={styles.compactErrorIcon}>✕</Text>
+            </View>
+            <Text style={styles.compactTitle}>Payment Failed</Text>
+            <Text style={styles.compactSubtitle}>{errorMessage}</Text>
+          </Animated.View>
+
+          {/* Error Reason & Transaction Summary */}
+          <Animated.View
+            style={[
+              styles.summarySection,
+              {
+                opacity: fadeValue,
+              },
+            ]}
+          >
+            {/* Error Reason */}
+            <View style={styles.errorReasonBox}>
+              <Ionicons name="alert-circle-outline" size={20} color={COLORS.textInverse} style={styles.errorReasonIcon} />
+              <Text style={styles.errorReasonText}>{errorReason}</Text>
+            </View>
+
+            {/* Transaction Details */}
+            <LinearGradient
+              colors={['#FFFFFF', '#F8F9FA']}
+              style={styles.summaryCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+            >
+              <Text style={styles.summaryTitle}>Transaction Details</Text>
+              <View style={styles.summaryDivider} />
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Amount</Text>
+                <Text style={styles.summaryValue}>₹{amount}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>To</Text>
+                <Text style={styles.summaryValue} numberOfLines={1}>{recipientName}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Time</Text>
+                <Text style={styles.summaryValueSmall}>{currentTime}</Text>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+
+          {/* Action Buttons */}
+          <Animated.View
+            style={[
+              styles.actionButtons,
+              {
+                opacity: fadeValue,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.tryAgainButton}
+              onPress={handleTryAgain}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.tryAgainButtonText}>Try Again</Text>
+            </TouchableOpacity>
+
+            <View style={styles.secondaryButtonsRow}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleContactSupport}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.secondaryButtonText}>Support</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleGoHome}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.secondaryButtonText}>Home</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxxl + 20,
+    paddingBottom: SPACING.xl,
+    justifyContent: 'space-between',
+  },
+  headerSection: {
+    alignItems: 'center',
+  },
+  compactIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  compactErrorIcon: {
+    fontSize: 50,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  compactTitle: {
+    fontSize: FONT_SIZES.xxl,
+    fontWeight: '800',
+    color: COLORS.textInverse,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  compactSubtitle: {
+    fontSize: FONT_SIZES.md,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  summarySection: {
+    flex: 1,
+    justifyContent: 'center',
+    marginVertical: SPACING.lg,
+  },
+  errorReasonBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  errorReasonIcon: {
+    marginRight: SPACING.sm,
+  },
+  errorReasonText: {
+    flex: 1,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textInverse,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  summaryCard: {
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  summaryTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  summaryLabel: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text,
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 2,
+  },
+  summaryValueSmall: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.text,
+    fontWeight: '500',
+    textAlign: 'right',
+    flex: 2,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.xs,
+  },
+  actionButtons: {
+    gap: SPACING.md,
+  },
+  tryAgainButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.md + 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tryAgainButtonText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    color: '#D32F2F',
+    textAlign: 'center',
+  },
+  secondaryButtonsRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  secondaryButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.textInverse,
+    textAlign: 'center',
+  },
+});

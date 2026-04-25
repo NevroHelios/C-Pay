@@ -1,0 +1,153 @@
+import React, { useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  ScrollView,
+} from 'react-native';
+import { PINInput } from '../components/PINInput';
+import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
+
+const FONT_SIZES = TYPOGRAPHY.sizes;
+
+interface CreatePINScreenProps {
+  navigation: any;
+  route: any;
+}
+
+export const CreatePINScreen: React.FC<CreatePINScreenProps> = ({ navigation, route }) => {
+  const { phoneNumber } = route.params || {};
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const navigatingRef = useRef(false);
+
+  const continueWithPin = (pinToConfirm: string) => {
+    if (navigatingRef.current) {
+      return;
+    }
+
+    if (pinToConfirm.length !== 6) {
+      setError('Please enter a 6-digit PIN');
+      return;
+    }
+
+    navigatingRef.current = true;
+    navigation.navigate('ConfirmPIN', { pin: pinToConfirm, phoneNumber });
+  };
+
+  const handlePINChange = (newPin: string) => {
+    setPin(newPin);
+    setError('');
+
+    if (newPin.length === 6) {
+      continueWithPin(newPin);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Image
+              source={require('../../assets/cpay_logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Create Your PIN</Text>
+            <Text style={styles.subtitle}>
+              Choose 6 digits you can remember. You will use this to unlock C-Pay.
+            </Text>
+          </View>
+
+          <View style={styles.infoSection}>
+            <Text style={styles.infoTitle}>Make it secure</Text>
+            <Text style={styles.infoText}>Avoid obvious patterns like 123456 or repeated digits.</Text>
+            <Text style={styles.infoText}>Your wallet remains encrypted on this device.</Text>
+          </View>
+
+          <View style={styles.pinSection}>
+            <PINInput
+              value={pin}
+              onChange={handlePINChange}
+              error={error}
+              autoFocus
+            />
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: Platform.OS === 'ios' ? SPACING.xxxl : SPACING.xxl,
+    paddingBottom: SPACING.xxl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: SPACING.xl * 2,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: SPACING.lg,
+  },
+  title: {
+    fontSize: FONT_SIZES.xxl,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  pinSection: {
+    marginBottom: SPACING.xl,
+  },
+  infoSection: {
+    backgroundColor: COLORS.card,
+    padding: SPACING.lg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: SPACING.xl,
+  },
+  infoTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    lineHeight: 19,
+  },
+});

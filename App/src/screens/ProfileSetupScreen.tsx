@@ -1,0 +1,464 @@
+import React, { useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Image,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../services/supabase';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { Button } from '../components';
+import { AlertManager } from '../utils/alert';
+import { generateCPayId } from '../utils/cpayId';
+
+interface ProfileSetupScreenProps {
+  navigation: any;
+  route: any;
+}
+
+export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigation, route }) => {
+  const { walletAddress, phoneNumber } = route.params;
+  const [fullName, setFullName] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const completingRef = useRef(false);
+
+  const handlePickImage = async () => {
+    try {
+      // Request permission - system will show dialog automatically
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        return; // User denied permission - system already showed dialog
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setProfilePhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+    }
+  };
+
+  const uploadProfilePhoto = async (photoUri: string, address: string): Promise<string | null> => {
+    try {
+      console.log('Uploading profile photo...');
+
+      // Read file as base64
+      const base64 = await fetch(photoUri)
+        .then(res => res.blob())
+        .then(blob => {
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64data = reader.result as string;
+              resolve(base64data.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        });
+
+      const fileExt = photoUri.split('.').pop()?.split('?')[0] || 'jpg';
+      const fileName = `${address.substring(0, 8)}_${Date.now()}.${fileExt}`;
+      const filePath = `profile-photos/${fileName}`;
+
+      // Convert base64 to array buffer
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('profile-images')
+        .upload(filePath, bytes.buffer, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        return null;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('profile-images')
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      return null;
+    }
+  };
+
+  const completeProfileSetup = async (
+    name: string,
+    phoneToSave: string | null,
+    cpayId: string,
+    photoUri: string | null
+  ): Promise<void> => {
+    let photoUrl: string | null = null;
+
+    if (photoUri) {
+      photoUrl = await uploadProfilePhoto(photoUri, walletAddress);
+      if (photoUrl) {
+        await AsyncStorage.setItem('profile_photo', photoUrl);
+      }
+    }
+
+    const { error: dbError } = await supabase
+      .from('users')
+      .upsert(
+        {
+          wallet_address: walletAddress,
+          display_name: name,
+          phone_number: phoneToSave,
+          cpay_id: cpayId,
+          profile_photo_url: photoUrl,
+        },
+        { onConflict: 'wallet_address' }
+      );
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+    }
+  };
+
+  const handleComplete = async () => {
+    const trimmedName = fullName.trim();
+
+    if (completingRef.current) {
+      return;
+    }
+
+    if (!trimmedName) {
+      AlertManager.alert('Name Required', 'Please enter your full name to continue.', undefined, { type: 'warning' });
+      return;
+    }
+
+    try {
+      completingRef.current = true;
+      setLoading(true);
+
+      // Check if phone number is development number
+      const devPhoneNumber = process.env.EXPO_PUBLIC_DEV_PHONE || '+911234567890';
+      const isDevPhone = phoneNumber === devPhoneNumber;
+      
+      // Only save phone number if it's not the development number
+      const phoneToSave = isDevPhone ? null : phoneNumber;
+      
+      // Generate a public C-Pay ID for display and receiving payments.
+      const cpayId = generateCPayId(phoneNumber, walletAddress);
+
+      // Save locally
+      const localWrites = [
+        AsyncStorage.setItem('display_name', trimmedName),
+        AsyncStorage.setItem('cpay_id', cpayId),
+        AsyncStorage.setItem('profile_complete', 'true'),
+      ];
+
+      if (profilePhoto) {
+        localWrites.push(AsyncStorage.setItem('profile_photo', profilePhoto));
+      }
+
+      // Only save phone locally if it's not dev number
+      if (!isDevPhone) {
+        localWrites.push(AsyncStorage.setItem('phone_number', phoneNumber));
+      }
+
+      await Promise.all(localWrites);
+
+      // Complete profile upload/cloud save here so the next screen opens cleanly.
+      await completeProfileSetup(trimmedName, phoneToSave, cpayId, profilePhoto);
+
+      // Biometric setup is optional and handled on the dedicated next screen.
+      navigation.replace('BiometricSetup');
+    } catch (error) {
+      console.error('Profile setup error:', error);
+      completingRef.current = false;
+      setLoading(false);
+      AlertManager.alert('Error', 'Failed to save profile. Please try again.', undefined, { type: 'error' });
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerIcon}>
+            <Ionicons name="person-outline" size={38} color={COLORS.textInverse} />
+          </View>
+          <Text style={styles.title}>Complete Your Profile</Text>
+          <Text style={styles.subtitle}>
+            Add the name people will see when they pay you.
+          </Text>
+        </LinearGradient>
+
+        <View style={styles.content}>
+          {/* Profile Photo Section */}
+          <View style={styles.section}>
+            <Text style={styles.label}>
+              Profile Photo <Text style={styles.optional}>(Optional)</Text>
+            </Text>
+            <TouchableOpacity
+              style={styles.photoContainer}
+              onPress={handlePickImage}
+              activeOpacity={0.8}
+              disabled={loading}
+            >
+              {profilePhoto ? (
+                <Image source={{ uri: profilePhoto }} style={styles.photo} />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="camera-outline" size={30} color={COLORS.textSecondary} style={styles.photoPlaceholderIcon} />
+                  <Text style={styles.photoPlaceholderText}>Add Photo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {profilePhoto && (
+              <TouchableOpacity
+                onPress={() => setProfilePhoto(null)}
+                style={styles.removePhotoButton}
+                disabled={loading}
+              >
+                <Text style={styles.removePhotoText}>Remove Photo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Full Name Section */}
+          <View style={styles.section}>
+            <Text style={styles.label}>
+              Full Name <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Enter your full name"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={50}
+              editable={!loading}
+            />
+            <Text style={styles.hint}>
+              This name will be visible to merchants and other users
+            </Text>
+          </View>
+
+          {/* Info Card */}
+          <View style={styles.infoCard}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.info} style={styles.infoIcon} />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Your Information is Secure</Text>
+              <Text style={styles.infoText}>
+                Your profile details are encrypted and stored securely. We never share your personal information.
+              </Text>
+            </View>
+          </View>
+
+          <Button
+            title={loading ? 'Saving Profile...' : 'Complete Setup'}
+            onPress={handleComplete}
+            disabled={loading}
+            loading={loading}
+            fullWidth
+            size="lg"
+          />
+
+          {loading && (
+            <Text style={styles.loadingText}>
+              Saving your profile before biometric setup...
+            </Text>
+          )}
+
+          <Text style={styles.footer}>
+            By continuing, you agree to our Terms of Service and Privacy Policy
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : SPACING.xl,
+    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  title: {
+    fontSize: FONT_SIZES.xxl,
+    fontWeight: '700',
+    color: COLORS.textInverse,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textInverse,
+    opacity: 0.9,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    padding: SPACING.lg,
+  },
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  label: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  required: {
+    color: COLORS.error,
+  },
+  optional: {
+    color: COLORS.textSecondary,
+    fontWeight: '400',
+  },
+  photoContainer: {
+    alignSelf: 'center',
+    marginBottom: SPACING.sm,
+  },
+  photo: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: COLORS.surface,
+  },
+  photoPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+  },
+  photoPlaceholderIcon: {
+    marginBottom: SPACING.xs,
+  },
+  photoPlaceholderText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  removePhotoButton: {
+    alignSelf: 'center',
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+  },
+  removePhotoText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.error,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  hint: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+  },
+  infoCard: {
+    backgroundColor: COLORS.infoBg,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    flexDirection: 'row',
+    marginBottom: SPACING.xl,
+  },
+  infoIcon: {
+    marginRight: SPACING.sm,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.infoDark,
+    marginBottom: 2,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
+  footer: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+  },
+  loadingText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING.md,
+  },
+});
