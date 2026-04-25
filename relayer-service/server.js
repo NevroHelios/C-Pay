@@ -102,7 +102,13 @@ app.get('/health', async (_req, res) => {
 app.get('/account/:accountId/status', async (req, res) => {
   const accountId = assertAccountId(req.params.accountId, 'accountId');
   const status = await getAccountStatus(accountId);
-  res.json(status);
+  const retryAfterSeconds = getAddMoneyRetryAfterSeconds(accountId);
+
+  res.json({
+    ...status,
+    addMoneyReady: status.exists && status.hasTrustline,
+    retryAfterSeconds,
+  });
 });
 
 app.get('/account/:accountId/balance', async (req, res) => {
@@ -172,7 +178,7 @@ app.post('/accounts/prepare', async (req, res) => {
 });
 
 app.post('/accounts/submit', async (req, res) => {
-  const signedXdr = assertXdr(req.body.signedXdr);
+  const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const tx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, config.passphrase);
   const result = await server.submitTransaction(tx);
 
@@ -184,7 +190,7 @@ app.post('/accounts/submit', async (req, res) => {
 });
 
 app.post('/payments/submit', async (req, res) => {
-  const signedXdr = assertXdr(req.body.signedXdr);
+  const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const idempotencyKey = normalizeOptionalString(req.body.idempotencyKey);
 
   if (idempotencyKey && idempotencyCache.has(idempotencyKey)) {
@@ -235,11 +241,12 @@ app.post('/add-money', async (req, res) => {
     });
   }
 
-  const cooldownUntil = addMoneyCooldowns.get(accountId) || 0;
-  if (Date.now() < cooldownUntil) {
+  const retryAfterSeconds = getAddMoneyRetryAfterSeconds(accountId);
+  if (retryAfterSeconds > 0) {
     return res.status(429).json({
       error: 'Add Money is cooling down for this account',
-      retryAfterSeconds: Math.ceil((cooldownUntil - Date.now()) / 1000),
+      code: 'ADD_MONEY_COOLDOWN',
+      retryAfterSeconds,
     });
   }
 
@@ -311,7 +318,13 @@ app.get('/tx/:hash', async (req, res) => {
 });
 
 app.use((error, _req, res, _next) => {
-  const status = error.statusCode || error.status || 500;
+  const horizonStatus = error.response?.status;
+  const horizonExtras = error.response?.data?.extras;
+  const resultCodes = horizonExtras?.result_codes;
+  const status = error.statusCode || error.status || horizonStatus || 500;
+  const stellarCode = resultCodes?.operations?.find(code => code !== 'op_success') || resultCodes?.transaction;
+  const code = stellarCode ? `STELLAR_${stellarCode.toUpperCase()}` : undefined;
+  const stellarMessage = getStellarErrorMessage(resultCodes);
   const message = status >= 500 ? 'Relayer service error' : error.message;
 
   if (status >= 500) {
@@ -321,7 +334,11 @@ app.use((error, _req, res, _next) => {
     });
   }
 
-  res.status(status).json({ error: message });
+  res.status(status).json({
+    error: stellarMessage || message,
+    code,
+    resultCodes,
+  });
 });
 
 app.listen(PORT, () => {
@@ -397,13 +414,56 @@ function assertAccountId(value, label) {
   return value;
 }
 
-function assertXdr(value) {
-  if (typeof value !== 'string' || value.length < 20 || value.length > 20000) {
+function assertTransactionEnvelopeXdr(value) {
+  if (typeof value !== 'string') {
     const error = new Error('Invalid transaction XDR');
     error.statusCode = 400;
     throw error;
   }
-  return value;
+
+  const trimmed = value.trim();
+  if (trimmed.length < 20 || trimmed.length > 20000) {
+    const error = new Error('Invalid transaction XDR');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const candidates = [trimmed];
+
+  if (/^[0-9a-fA-F]+$/.test(trimmed) && trimmed.length % 2 === 0) {
+    candidates.push(Buffer.from(trimmed, 'hex').toString('base64'));
+  }
+
+  if (/^\d+(,\d+)+$/.test(trimmed)) {
+    const bytes = trimmed.split(',').map(item => Number(item));
+    const validBytes = bytes.every(item => Number.isInteger(item) && item >= 0 && item <= 255);
+    if (validBytes) {
+      candidates.push(Buffer.from(bytes).toString('base64'));
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (isTransactionEnvelopeXdr(candidate)) {
+      return candidate;
+    }
+  }
+
+  const error = new Error('Invalid transaction XDR');
+  error.statusCode = 400;
+  throw error;
+}
+
+function isTransactionEnvelopeXdr(value) {
+  try {
+    const envelope = StellarSdk.xdr.TransactionEnvelope.fromXDR(value, 'base64');
+    const envelopeType = envelope.switch();
+    return (
+      envelopeType === StellarSdk.xdr.EnvelopeType.envelopeTypeTx() ||
+      envelopeType === StellarSdk.xdr.EnvelopeType.envelopeTypeTxV0()
+    );
+  } catch {
+    return false;
+  }
 }
 
 function normalizeOptionalString(value) {
@@ -471,6 +531,42 @@ async function getAccountStatus(accountId) {
     }
     throw error;
   }
+}
+
+function getAddMoneyRetryAfterSeconds(accountId) {
+  const cooldownUntil = addMoneyCooldowns.get(accountId) || 0;
+  const remainingMs = cooldownUntil - Date.now();
+  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+}
+
+function getStellarErrorMessage(resultCodes) {
+  const operations = resultCodes?.operations || [];
+
+  if (operations.includes('op_no_issuer')) {
+    return `The configured ${config.assetCode} issuer account does not exist on ${config.networkName}. Run the testnet asset setup before using Add Money.`;
+  }
+
+  if (operations.includes('op_no_trust')) {
+    return `${config.assetCode} trustline setup is missing or incomplete. Please try Add Money again.`;
+  }
+
+  if (operations.includes('op_underfunded')) {
+    return 'The sponsor account does not have enough XLM to prepare this wallet.';
+  }
+
+  if (operations.includes('op_already_exists')) {
+    return 'This wallet setup is already confirmed. Please try Add Money again.';
+  }
+
+  if (resultCodes?.transaction === 'tx_bad_seq') {
+    return 'The relayer sequence was used by another request. Please try again.';
+  }
+
+  if (resultCodes?.transaction === 'tx_bad_auth' || resultCodes?.transaction === 'tx_bad_auth_extra') {
+    return 'Wallet setup signature was rejected. Please unlock the correct wallet and try again.';
+  }
+
+  return '';
 }
 
 function validatePaymentTransaction(transaction) {

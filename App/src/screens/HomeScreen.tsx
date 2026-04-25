@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { requestAddMoney, canAddMoney, getBalance, getTimeUntilNextAddMoney, formatTimeRemaining } from '../services/blockchain';
+import { requestAddMoney, getBalance, formatTimeRemaining } from '../services/blockchain';
 import { startTransactionPolling, stopTransactionPolling } from '../services/transactionMonitor';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { getTransactions, saveTransaction, Transaction, storageEvents } from '../services/storage';
@@ -28,7 +28,7 @@ interface HomeScreenProps {
   navigation: any;
 }
 
-type AddMoneyPhase = 'idle' | 'confirm' | 'checking' | 'authenticating' | 'processing' | 'success' | 'error';
+type AddMoneyPhase = 'idle' | 'confirm' | 'authenticating' | 'processing' | 'success' | 'error';
 
 const ADD_MONEY_DISPLAY_AMOUNT = '100';
 
@@ -38,6 +38,69 @@ const waitForUiPaint = () =>
       setTimeout(resolve, 0);
     });
   });
+
+type AddMoneyError = Error & {
+  code?: string;
+  status?: number;
+  retryAfterSeconds?: number;
+};
+
+const getAddMoneyErrorMessage = (error: unknown): string => {
+  const addMoneyError = error as Partial<AddMoneyError>;
+  const message = typeof addMoneyError.message === 'string'
+    ? addMoneyError.message
+    : 'Failed to add money';
+  const lowerMessage = message.toLowerCase();
+  const code = addMoneyError.code || '';
+  const retryAfterSeconds = Number(addMoneyError.retryAfterSeconds || 0);
+
+  if (code === 'ADD_MONEY_COOLDOWN' || addMoneyError.status === 429 || lowerMessage.includes('cooling down')) {
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return `Please wait ${formatTimeRemaining(retryAfterSeconds)} before adding money again.`;
+    }
+
+    return 'Please wait 24 hours between Add Money claims.';
+  }
+
+  if (code === 'DISTRIBUTION_LOW_ASSET' || (lowerMessage.includes('insufficient') && lowerMessage.includes('cpinr'))) {
+    return 'Add Money is temporarily unavailable because the relayer distribution account has no CPINR balance.';
+  }
+
+  if (code === 'ACCOUNT_NOT_READY') {
+    return 'Wallet setup could not finish yet. Please try again in a few seconds.';
+  }
+
+  if (code === 'RELAYER_TIMEOUT' || lowerMessage.includes('taking too long')) {
+    return 'Payment service is taking too long to respond. Please try again.';
+  }
+
+  if (code === 'RELAYER_UNREACHABLE' || lowerMessage.includes('not reachable')) {
+    return 'Payment service is not reachable. Check your internet connection or relayer service.';
+  }
+
+  if (lowerMessage.includes('network') || lowerMessage.includes('connection') || lowerMessage.includes('fetch')) {
+    return 'Please check your internet connection and try again.';
+  }
+
+  return message;
+};
+
+const getAddMoneyTitle = (phase: AddMoneyPhase): string => {
+  switch (phase) {
+    case 'confirm':
+      return 'Add Money';
+    case 'authenticating':
+      return 'Authentication Required';
+    case 'processing':
+      return 'Adding Money';
+    case 'success':
+      return 'Money Added';
+    case 'error':
+      return 'Add Money Failed';
+    default:
+      return 'Add Money';
+  }
+};
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [balance, setBalance] = useState<string>('0');
@@ -52,7 +115,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [addMoneyTxHash, setAddMoneyTxHash] = useState('');
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
-  const isAddMoneyBusy = ['checking', 'authenticating', 'processing'].includes(addMoneyPhase);
+  const isAddMoneyBusy = ['authenticating', 'processing'].includes(addMoneyPhase);
 
   useEffect(() => {
     loadWalletData();
@@ -210,20 +273,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     try {
       setAddMoneyTxHash('');
-      setAddMoneyMessage('Checking wallet readiness...');
-      setAddMoneyPhase('checking');
-      await waitForUiPaint();
-
-      const canClaim = await canAddMoney(walletAddress);
-      
-      if (!canClaim) {
-        const timeRemaining = await getTimeUntilNextAddMoney(walletAddress);
-        const timeFormatted = formatTimeRemaining(timeRemaining);
-        setAddMoneyMessage(`Your wallet is being prepared. Please try again in ${timeFormatted}.`);
-        setAddMoneyPhase('error');
-        return;
-      }
-
       setAddMoneyMessage('Confirm with PIN or biometrics to continue...');
       setAddMoneyPhase('authenticating');
       await waitForUiPaint();
@@ -240,7 +289,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         return;
       }
 
-      setAddMoneyMessage('Preparing your wallet and adding test balance...');
+      if (wallet.publicKey !== walletAddress) {
+        setAddMoneyMessage('This device wallet does not match the active profile. Please sign in again before adding money.');
+        setAddMoneyPhase('error');
+        return;
+      }
+
+      setAddMoneyMessage('Preparing your wallet on Stellar and adding test balance...');
       setAddMoneyPhase('processing');
       await waitForUiPaint();
 
@@ -268,27 +323,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     } catch (error: any) {
       console.error('Add Money error:', error);
 
-      let errorMessage = error.message || 'Failed to add money';
-
-      if (error.message?.includes('wait') && (error.message?.includes('h ') || error.message?.includes('m'))) {
-        errorMessage = error.message;
-      } else if (error.message?.includes('wait 24 hours') || error.message?.includes('cooling down')) {
-        try {
-          const timeRemaining = await getTimeUntilNextAddMoney(walletAddress);
-          const timeFormatted = formatTimeRemaining(timeRemaining);
-          errorMessage = `Please wait ${timeFormatted} before adding money again.`;
-        } catch {
-          errorMessage = 'Please wait 24 hours between Add Money claims.';
-        }
-      } else if (error.message?.includes('insufficient') && error.message?.includes('CPINR')) {
-        errorMessage = 'Add Money is not available yet because the relayer distribution account has no CPINR balance.';
-      } else if (error.message?.includes('not reachable')) {
-        errorMessage = 'Payment service is not reachable. Check your internet connection or relayer service.';
-      } else if (error.message?.includes('network') || error.message?.includes('connection') || error.message?.includes('fetch')) {
-        errorMessage = 'Please check your internet connection and try again.';
-      }
-
-      setAddMoneyMessage(errorMessage);
+      setAddMoneyMessage(getAddMoneyErrorMessage(error));
       setAddMoneyPhase('error');
     }
   };
@@ -485,19 +520,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               )}
             </View>
 
-            <Text style={styles.addMoneyTitle}>
-              {addMoneyPhase === 'confirm'
-                ? 'Add Money'
-                : addMoneyPhase === 'checking'
-                  ? 'Checking Wallet'
-                  : addMoneyPhase === 'authenticating'
-                    ? 'Authentication Required'
-                    : addMoneyPhase === 'processing'
-                      ? 'Adding Money'
-                      : addMoneyPhase === 'success'
-                        ? 'Money Added'
-                        : 'Add Money Failed'}
-            </Text>
+            <Text style={styles.addMoneyTitle}>{getAddMoneyTitle(addMoneyPhase)}</Text>
 
             <Text style={styles.addMoneyMessage}>{addMoneyMessage}</Text>
 

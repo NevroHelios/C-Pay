@@ -101,7 +101,7 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
   const handleEnableBiometric = async () => {
     setLoading(true);
     try {
-      const success = await enableBiometric();
+      const success = await enableBiometric({ skipAvailabilityCheck: isAvailable });
 
       if (success) {
         // Save biometric preference locally

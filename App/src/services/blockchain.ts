@@ -49,6 +49,8 @@ const CPINR_ASSET_ISSUER = getEnvVar('EXPO_PUBLIC_CPINR_ASSET_ISSUER', '');
 const RELAYER_URL = resolveRelayerUrl();
 const BASE_FEE = getEnvVar('EXPO_PUBLIC_STELLAR_BASE_FEE', StellarSdk.BASE_FEE);
 const RELAYER_TIMEOUT_MS = 12000;
+const ACCOUNT_READY_TIMEOUT_MS = 15000;
+const ACCOUNT_READY_POLL_MS = 1500;
 
 export type TransactionStatus = 'pending' | 'success' | 'failed' | 'unknown';
 
@@ -64,6 +66,43 @@ type HorizonAccount = {
   sequence: string;
   balances: HorizonBalance[];
 };
+
+type AccountStatus = {
+  exists: boolean;
+  hasTrustline: boolean;
+  retryAfterSeconds?: number;
+};
+
+type RelayerErrorBody = {
+  error?: string;
+  code?: string;
+  retryAfterSeconds?: number | string;
+  [key: string]: unknown;
+};
+
+export class RelayerRequestError extends Error {
+  status?: number;
+  code?: string;
+  retryAfterSeconds?: number;
+  details?: RelayerErrorBody;
+
+  constructor(
+    message: string,
+    options: {
+      status?: number;
+      code?: string;
+      retryAfterSeconds?: number;
+      details?: RelayerErrorBody;
+    } = {}
+  ) {
+    super(message);
+    this.name = 'RelayerRequestError';
+    this.status = options.status;
+    this.code = options.code;
+    this.retryAfterSeconds = options.retryAfterSeconds;
+    this.details = options.details;
+  }
+}
 
 export function getNetworkConfig() {
   return {
@@ -138,6 +177,8 @@ export async function ensureAccountReady(wallet: StellarWallet): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ signedXdr }),
   });
+
+  await waitForAccountReady(wallet.publicKey);
 }
 
 export async function canAddMoney(accountId: string): Promise<boolean> {
@@ -145,16 +186,21 @@ export async function canAddMoney(accountId: string): Promise<boolean> {
     return false;
   }
 
-  const status = await relayerRequest<{ exists: boolean; hasTrustline: boolean }>(
-    `/account/${accountId}/status`,
-    {},
-    8000
-  );
+  const status = await getAccountStatus(accountId, 8000);
   return status.exists && status.hasTrustline;
 }
 
-export async function getTimeUntilNextAddMoney(_accountId: string): Promise<number> {
-  return 0;
+export async function getTimeUntilNextAddMoney(accountId: string): Promise<number> {
+  if (!isValidAccountId(accountId)) {
+    return 0;
+  }
+
+  try {
+    const status = await getAccountStatus(accountId, 8000);
+    return normalizeRetryAfterSeconds(status.retryAfterSeconds);
+  } catch {
+    return 0;
+  }
 }
 
 export function formatTimeRemaining(seconds: number): string {
@@ -304,6 +350,28 @@ async function loadHorizonAccount(accountId: string): Promise<HorizonAccount> {
   return horizonRequest<HorizonAccount>(`/accounts/${accountId}`);
 }
 
+async function getAccountStatus(
+  accountId: string,
+  timeoutMs: number = RELAYER_TIMEOUT_MS
+): Promise<AccountStatus> {
+  return relayerRequest<AccountStatus>(`/account/${accountId}/status`, {}, timeoutMs);
+}
+
+async function waitForAccountReady(accountId: string): Promise<void> {
+  const deadline = Date.now() + ACCOUNT_READY_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const status = await getAccountStatus(accountId, 8000);
+    if (status.exists && status.hasTrustline) {
+      return;
+    }
+
+    await delay(ACCOUNT_READY_POLL_MS);
+  }
+
+  throw new Error('Wallet setup is still confirming on Stellar. Please try again in a few seconds.');
+}
+
 async function horizonRequest<T = any>(path: string): Promise<T> {
   const response = await fetch(`${HORIZON_URL}${path}`, {
     headers: {
@@ -341,21 +409,38 @@ async function relayerRequest<T = any>(
     });
   } catch (error: any) {
     if (error?.name === 'AbortError') {
-      throw new Error('Payment service is taking too long to respond. Please try again.');
+      throw new RelayerRequestError('Payment service is taking too long to respond. Please try again.', {
+        code: 'RELAYER_TIMEOUT',
+      });
     }
 
-    throw new Error(
-      `Payment service is not reachable. Check your internet connection and relayer URL (${RELAYER_URL}).`
+    throw new RelayerRequestError(
+      `Payment service is not reachable. Check your internet connection and relayer URL (${RELAYER_URL}).`,
+      { code: 'RELAYER_UNREACHABLE' }
     );
   } finally {
     clearTimeout(timeout);
   }
 
-  const body = await response.json().catch(() => ({}));
+  const body = await response.json().catch(() => ({})) as RelayerErrorBody;
 
   if (!response.ok) {
-    throw new Error(body.error || 'Payment service unavailable');
+    throw new RelayerRequestError(body.error || 'Payment service unavailable', {
+      status: response.status,
+      code: body.code,
+      retryAfterSeconds: normalizeRetryAfterSeconds(body.retryAfterSeconds),
+      details: body,
+    });
   }
 
   return body as T;
+}
+
+function normalizeRetryAfterSeconds(value: unknown): number {
+  const seconds = Number(value || 0);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 0;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

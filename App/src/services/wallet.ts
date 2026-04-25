@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import * as StellarSdk from '@stellar/stellar-base';
+import { Buffer } from 'buffer';
 import { xchacha20poly1305 } from '@noble/ciphers/chacha';
 import { bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/ciphers/utils';
 import { pbkdf2Async } from '@noble/hashes/pbkdf2';
@@ -51,6 +52,11 @@ type CachedPin = {
   expiresAt: number;
 };
 
+type CachedWallet = {
+  wallet: StellarWallet;
+  expiresAt: number;
+};
+
 export type StellarWallet = {
   address: string;
   publicKey: string;
@@ -61,6 +67,7 @@ export type StellarWallet = {
 
 let cachedPinHash: string | null = null;
 let cachedPin: CachedPin | null = null;
+let cachedWallet: CachedWallet | null = null;
 
 type VerifyPinOptions = {
   migrate?: boolean;
@@ -76,6 +83,7 @@ export function cachePinForSession(pin: string, ttlMs: number = SESSION_PIN_TTL_
 
 export function clearSessionPin(): void {
   cachedPin = null;
+  cachedWallet = null;
 }
 
 function getCachedPin(): string | null {
@@ -92,6 +100,11 @@ function getCachedPin(): string | null {
 }
 
 export async function getWalletFromSession(): Promise<StellarWallet | null> {
+  const wallet = getCachedWallet();
+  if (wallet) {
+    return wallet;
+  }
+
   const pin = getCachedPin();
   if (!pin) {
     return null;
@@ -110,6 +123,7 @@ export async function createWallet(pin: string): Promise<string> {
     storePinVerifier(pin),
   ]);
   cachePinForSession(pin);
+  cacheWalletForSession(secret);
 
   return publicKey;
 }
@@ -127,7 +141,7 @@ export async function getWallet(pin: string): Promise<StellarWallet | null> {
     }
 
     cachePinForSession(pin);
-    return createWalletObject(secret);
+    return cacheWalletForSession(secret);
   } catch (error) {
     console.error('Error getting wallet:', error);
     return null;
@@ -210,6 +224,7 @@ export async function changeWalletPin(oldPin: string, newPin: string): Promise<v
   await storeSecret(secret, newPin);
   await storePinVerifier(newPin);
   cachePinForSession(newPin);
+  cacheWalletForSession(secret);
 }
 
 async function storePinVerifier(pin: string): Promise<void> {
@@ -482,7 +497,31 @@ export async function recreateWalletFromSecret(secret: string, newPin: string): 
   await SecureStore.deleteItemAsync(SALT_KEY);
   await storePinVerifier(newPin);
   cachePinForSession(newPin);
+  cacheWalletForSession(secret);
   return wallet.publicKey;
+}
+
+function getCachedWallet(): StellarWallet | null {
+  if (!cachedWallet) {
+    return null;
+  }
+
+  if (Date.now() >= cachedWallet.expiresAt) {
+    cachedWallet = null;
+    return null;
+  }
+
+  return cachedWallet.wallet;
+}
+
+function cacheWalletForSession(secret: string, ttlMs: number = SESSION_PIN_TTL_MS): StellarWallet {
+  const wallet = createWalletObject(secret);
+  cachedWallet = {
+    wallet,
+    expiresAt: Date.now() + ttlMs,
+  };
+
+  return wallet;
 }
 
 function createWalletObject(secret: string): StellarWallet {
@@ -495,9 +534,69 @@ function createWalletObject(secret: string): StellarWallet {
     secret,
     keypair,
     signXdr: (xdr: string, networkPassphrase: string) => {
-      const transaction = StellarSdk.TransactionBuilder.fromXDR(xdr, networkPassphrase);
-      transaction.sign(keypair);
-      return transaction.toXDR();
+      return signTransactionEnvelopeXdr(xdr, networkPassphrase, keypair);
     },
   };
+}
+
+function signTransactionEnvelopeXdr(
+  envelopeXdr: string,
+  networkPassphrase: string,
+  keypair: StellarSdk.Keypair
+): string {
+  const envelope = StellarSdk.xdr.TransactionEnvelope.fromXDR(envelopeXdr, 'base64');
+  const envelopeType = envelope.switch();
+
+  if (envelopeType === StellarSdk.xdr.EnvelopeType.envelopeTypeTx()) {
+    const txEnvelope = envelope.v1();
+    const tx = txEnvelope.tx();
+    const signatures = txEnvelope.signatures().slice();
+
+    signatures.push(signTransactionPayload(tx, networkPassphrase, keypair));
+
+    return encodeXdrBase64(
+      StellarSdk.xdr.TransactionEnvelope
+        .envelopeTypeTx(new StellarSdk.xdr.TransactionV1Envelope({ tx, signatures }))
+    );
+  }
+
+  if (envelopeType === StellarSdk.xdr.EnvelopeType.envelopeTypeTxV0()) {
+    const txEnvelope = envelope.v0();
+    const txV0 = txEnvelope.tx();
+    const signatures = txEnvelope.signatures().slice();
+    const tx = StellarSdk.xdr.Transaction.fromXDR(
+      Buffer.concat([
+        (StellarSdk.xdr.PublicKeyType.publicKeyTypeEd25519() as any).toXDR(),
+        txV0.toXDR(),
+      ])
+    );
+
+    signatures.push(signTransactionPayload(tx, networkPassphrase, keypair));
+
+    return encodeXdrBase64(
+      StellarSdk.xdr.TransactionEnvelope
+        .envelopeTypeTxV0(new StellarSdk.xdr.TransactionV0Envelope({ tx: txV0, signatures }))
+    );
+  }
+
+  throw new Error(`Unsupported transaction envelope type: ${envelopeType.name}`);
+}
+
+function signTransactionPayload(
+  tx: StellarSdk.xdr.Transaction,
+  networkPassphrase: string,
+  keypair: StellarSdk.Keypair
+): StellarSdk.xdr.DecoratedSignature {
+  const taggedTransaction = StellarSdk.xdr.TransactionSignaturePayloadTaggedTransaction.envelopeTypeTx(tx);
+  const signaturePayload = new StellarSdk.xdr.TransactionSignaturePayload({
+    networkId: StellarSdk.xdr.Hash.fromXDR(StellarSdk.hash(Buffer.from(networkPassphrase, 'utf8'))),
+    taggedTransaction,
+  });
+  const txHash = StellarSdk.hash(signaturePayload.toXDR());
+
+  return keypair.signDecorated(txHash);
+}
+
+function encodeXdrBase64(value: { toXDR: () => Buffer | Uint8Array }): string {
+  return Buffer.from(value.toXDR()).toString('base64');
 }

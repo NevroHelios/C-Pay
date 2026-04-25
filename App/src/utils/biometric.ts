@@ -211,9 +211,9 @@ export async function authenticateForUnlock(): Promise<boolean> {
  * Enable biometric authentication (setup flow)
  * Falls back to device credentials if biometric is not available
  */
-export async function enableBiometric(): Promise<boolean> {
+export async function enableBiometric(options: { skipAvailabilityCheck?: boolean } = {}): Promise<boolean> {
   try {
-    const available = await isBiometricAvailable();
+    const available = options.skipAvailabilityCheck || await isBiometricAvailable();
     if (!available) {
       return false;
     }
