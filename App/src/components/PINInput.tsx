@@ -5,6 +5,7 @@ import {
   TextInput,
   StyleSheet,
 } from 'react-native';
+import type { TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 
@@ -19,6 +20,11 @@ interface PINInputProps {
   error?: string;
   autoFocus?: boolean;
   disabled?: boolean;
+  length?: number;
+  secure?: boolean;
+  accessibilityLabel?: string;
+  textContentType?: TextInputProps['textContentType'];
+  autoComplete?: TextInputProps['autoComplete'];
 }
 
 export const PINInput: React.FC<PINInputProps> = memo(({
@@ -28,10 +34,16 @@ export const PINInput: React.FC<PINInputProps> = memo(({
   error,
   autoFocus = false,
   disabled = false,
+  length = PIN_LENGTH,
+  secure = true,
+  accessibilityLabel = 'PIN input',
+  textContentType = 'none',
+  autoComplete = 'off',
 }) => {
   const inputRef = useRef<TextInput | null>(null);
   const lastCompletedPin = useRef('');
   const [isFocused, setIsFocused] = useState(false);
+  const compact = length > PIN_LENGTH;
 
   useEffect(() => {
     if (autoFocus && !disabled) {
@@ -41,29 +53,29 @@ export const PINInput: React.FC<PINInputProps> = memo(({
   }, [autoFocus, disabled]);
 
   useEffect(() => {
-    if (value.length === PIN_LENGTH && value !== lastCompletedPin.current) {
+    if (value.length === length && value !== lastCompletedPin.current) {
       lastCompletedPin.current = value;
       onComplete?.(value);
     }
-    if (value.length < PIN_LENGTH) {
+    if (value.length < length) {
       lastCompletedPin.current = '';
     }
-  }, [value, onComplete]);
+  }, [value, length, onComplete]);
 
   const handleChange = useCallback((text: string) => {
-    onChange(text.replace(/\D/g, '').slice(0, PIN_LENGTH));
-  }, [onChange]);
+    onChange(text.replace(/\D/g, '').slice(0, length));
+  }, [length, onChange]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.pinContainer}>
+      <View style={[styles.pinContainer, compact && styles.pinContainerCompact]}>
         <View style={styles.pinVisualLayer} pointerEvents="none">
-          {Array.from({ length: PIN_LENGTH }).map((_, index) => {
+          {Array.from({ length }).map((_, index) => {
             const isActive =
               isFocused &&
               !disabled &&
               !error &&
-              (value.length === index || (value.length === PIN_LENGTH && index === PIN_LENGTH - 1));
+              (value.length === index || (value.length === length && index === length - 1));
             const isFilled = Boolean(value[index]);
 
             return (
@@ -71,13 +83,26 @@ export const PINInput: React.FC<PINInputProps> = memo(({
                 key={index}
                 style={[
                   styles.pinBox,
+                  compact && styles.pinBoxCompact,
                   error && styles.pinBoxError,
                   isFilled && styles.pinBoxFilled,
                   isActive && styles.pinBoxFocused,
                   disabled && styles.pinBoxDisabled,
                 ]}
               >
-                {isFilled && <View style={[styles.pinDot, error && styles.pinDotError]} />}
+                {isFilled && (
+                  secure ? (
+                    <View style={[styles.pinDot, error && styles.pinDotError]} />
+                  ) : (
+                    <Text style={[
+                      styles.pinDigit,
+                      compact && styles.pinDigitCompact,
+                      error && styles.pinDigitError,
+                    ]}>
+                      {value[index]}
+                    </Text>
+                  )
+                )}
               </View>
             );
           })}
@@ -91,16 +116,16 @@ export const PINInput: React.FC<PINInputProps> = memo(({
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           keyboardType="number-pad"
-          textContentType="none"
-          autoComplete="off"
-          importantForAutofill="no"
-          maxLength={PIN_LENGTH}
-          secureTextEntry
+          textContentType={textContentType}
+          autoComplete={autoComplete}
+          importantForAutofill={autoComplete === 'off' ? 'no' : 'yes'}
+          maxLength={length}
+          secureTextEntry={secure}
           caretHidden
           showSoftInputOnFocus
           selectionColor="transparent"
           editable={!disabled}
-          accessibilityLabel="PIN input"
+          accessibilityLabel={accessibilityLabel}
         />
       </View>
 
@@ -125,6 +150,10 @@ const styles = StyleSheet.create({
     minHeight: 58,
     position: 'relative',
   },
+  pinContainerCompact: {
+    maxWidth: 420,
+    minHeight: 52,
+  },
   pinVisualLayer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -143,6 +172,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: COLORS.surface,
     ...SHADOWS.sm,
+  },
+  pinBoxCompact: {
+    maxWidth: 42,
+    minWidth: 32,
+    height: 52,
+    marginHorizontal: 3,
   },
   pinBoxFocused: {
     borderColor: COLORS.primary,
@@ -177,6 +212,18 @@ const styles = StyleSheet.create({
   },
   pinDotError: {
     backgroundColor: COLORS.error,
+  },
+  pinDigit: {
+    color: COLORS.text,
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  pinDigitCompact: {
+    fontSize: FONT_SIZES.lg,
+  },
+  pinDigitError: {
+    color: COLORS.error,
   },
   messageContainer: {
     flexDirection: 'row',

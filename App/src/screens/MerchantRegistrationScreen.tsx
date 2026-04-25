@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   ScrollView,
   KeyboardAvoidingView,
@@ -15,13 +14,16 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAsMerchant, uploadMerchantLogo } from '../services/merchant';
-import { sendEmailOTP, verifyEmailOTP, sendPhoneOTP, verifyPhoneOTP, getDevOTP } from '../services/auth';
+import { sendEmailOTP, verifyEmailOTP, getDevOTP } from '../services/auth';
+import { PINInput } from '../components/PINInput';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { AlertManager } from '../utils/alert';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MERCHANT_EMAIL_OTP_LENGTH = 8;
 
 interface MerchantRegistrationScreenProps {
   navigation: any;
@@ -60,19 +62,31 @@ export const MerchantRegistrationScreen: React.FC<
   const [emailVerified, setEmailVerified] = useState(false);
   const [emailVerificationId, setEmailVerificationId] = useState('');
   const [emailOTP, setEmailOTP] = useState('');
+  const [emailOTPError, setEmailOTPError] = useState('');
   const [showEmailOTPModal, setShowEmailOTPModal] = useState(false);
   const [emailOTPLoading, setEmailOTPLoading] = useState(false);
-  
-  // Phone verification states
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [phoneVerificationId, setPhoneVerificationId] = useState('');
-  const [phoneOTP, setPhoneOTP] = useState('');
-  const [showPhoneOTPModal, setShowPhoneOTPModal] = useState(false);
-  const [phoneOTPLoading, setPhoneOTPLoading] = useState(false);
   
   // Dev mode hint
   const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
   const devOTP = getDevOTP();
+  const emailDevOTP = devOTP.padStart(MERCHANT_EMAIL_OTP_LENGTH, '0');
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (emailVerified) {
+      setEmailVerified(false);
+    }
+    setEmailVerificationId('');
+    setEmailOTP('');
+    setEmailOTPError('');
+  };
+
+  const handleEmailOTPChange = (value: string) => {
+    setEmailOTP(value);
+    if (emailOTPError) {
+      setEmailOTPError('');
+    }
+  };
 
   const handlePickLogo = async () => {
     try {
@@ -100,19 +114,23 @@ export const MerchantRegistrationScreen: React.FC<
   };
 
   const handleSendEmailOTP = async () => {
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
       AlertManager.alert('Error', 'Please enter your email address first');
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       AlertManager.alert('Error', 'Please enter a valid email address');
       return;
     }
 
     setEmailOTPLoading(true);
-    const result = await sendEmailOTP(email);
+    setEmail(normalizedEmail);
+    setEmailOTP('');
+    setEmailOTPError('');
+    const result = await sendEmailOTP(normalizedEmail);
     setEmailOTPLoading(false);
 
     if (result.success && result.verificationId) {
@@ -123,69 +141,31 @@ export const MerchantRegistrationScreen: React.FC<
     }
   };
 
-  const handleVerifyEmailOTP = async () => {
-    if (emailOTP.length !== 6) {
-      AlertManager.alert('Error', 'Please enter a valid 6-digit OTP');
+  const handleVerifyEmailOTP = async (code: string = emailOTP) => {
+    if (emailOTPLoading) {
       return;
     }
 
+    const otpToVerify = code.replace(/\D/g, '').slice(0, MERCHANT_EMAIL_OTP_LENGTH);
+    setEmailOTP(otpToVerify);
+
+    if (otpToVerify.length !== MERCHANT_EMAIL_OTP_LENGTH) {
+      setEmailOTPError(`Enter the ${MERCHANT_EMAIL_OTP_LENGTH}-digit code from your email`);
+      return;
+    }
+
+    setEmailOTPError('');
     setEmailOTPLoading(true);
-    const result = await verifyEmailOTP(emailVerificationId, emailOTP);
+    const result = await verifyEmailOTP(emailVerificationId, otpToVerify);
     setEmailOTPLoading(false);
 
     if (result.success) {
       setEmailVerified(true);
       setShowEmailOTPModal(false);
       setEmailOTP('');
+      setEmailOTPError('');
     } else {
-      AlertManager.alert('Error', result.error || 'Invalid OTP');
-    }
-  };
-
-  const handleSendPhoneOTP = async () => {
-    if (!phoneNumber.trim()) {
-      AlertManager.alert('Error', 'Please enter your phone number first');
-      return;
-    }
-
-    if (phoneNumber.length < 10) {
-      AlertManager.alert('Error', 'Please enter a valid phone number');
-      return;
-    }
-
-    setPhoneOTPLoading(true);
-    let formattedPhone = phoneNumber.trim();
-    if (!formattedPhone.startsWith('+')) {
-      formattedPhone = '+91' + formattedPhone;
-    }
-    
-    const result = await sendPhoneOTP(formattedPhone);
-    setPhoneOTPLoading(false);
-
-    if (result.success && result.verificationId) {
-      setPhoneVerificationId(result.verificationId);
-      setShowPhoneOTPModal(true);
-    } else {
-      AlertManager.alert('Error', result.error || 'Failed to send OTP');
-    }
-  };
-
-  const handleVerifyPhoneOTP = async () => {
-    if (phoneOTP.length !== 6) {
-      AlertManager.alert('Error', 'Please enter a valid 6-digit OTP');
-      return;
-    }
-
-    setPhoneOTPLoading(true);
-    const result = await verifyPhoneOTP(phoneVerificationId, phoneOTP);
-    setPhoneOTPLoading(false);
-
-    if (result.success) {
-      setPhoneVerified(true);
-      setShowPhoneOTPModal(false);
-      setPhoneOTP('');
-    } else {
-      AlertManager.alert('Error', result.error || 'Invalid OTP');
+      setEmailOTPError(result.error || 'Invalid verification code. Check your email and try again.');
     }
   };
 
@@ -206,9 +186,9 @@ export const MerchantRegistrationScreen: React.FC<
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       AlertManager.alert('Error', 'Please enter a valid email address');
       return;
     }
@@ -223,8 +203,11 @@ export const MerchantRegistrationScreen: React.FC<
       return;
     }
 
-    if (!phoneVerified) {
-      AlertManager.alert('Error', 'Please verify your phone number');
+    const normalizedPhone = phoneNumber.trim();
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
+
+    if (phoneDigits.length < 10) {
+      AlertManager.alert('Error', 'Please enter a valid contact phone number');
       return;
     }
 
@@ -274,8 +257,8 @@ export const MerchantRegistrationScreen: React.FC<
         description: description || undefined,
         category: finalCategory,
         owner_name: ownerName,
-        email: email,
-        phone_number: phoneNumber,
+        email: normalizedEmail,
+        phone_number: normalizedPhone,
         business_address: businessAddress,
         business_registration_number: businessRegistrationNumber || undefined,
         logo_url: logoUrl,
@@ -295,6 +278,8 @@ export const MerchantRegistrationScreen: React.FC<
       setLoading(false);
     }
   };
+
+  const emailOTPComplete = emailOTP.length === MERCHANT_EMAIL_OTP_LENGTH;
 
   return (
     <KeyboardAvoidingView
@@ -376,10 +361,7 @@ export const MerchantRegistrationScreen: React.FC<
               <TextInput
                 style={[styles.input, styles.inputWithVerify]}
                 value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (emailVerified) setEmailVerified(false);
-                }}
+                onChangeText={handleEmailChange}
                 placeholder="contact@yourbusiness.com"
                 placeholderTextColor={COLORS.textSecondary}
                 keyboardType="email-address"
@@ -393,20 +375,20 @@ export const MerchantRegistrationScreen: React.FC<
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={styles.verifyButton}
+                  style={[styles.verifyButton, emailOTPLoading && styles.buttonDisabled]}
                   onPress={handleSendEmailOTP}
                   disabled={emailOTPLoading}
                 >
                   {emailOTPLoading ? (
-                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <ActivityIndicator size="small" color={COLORS.card} />
                   ) : (
-                    <Text style={styles.verifyButtonText}>Verify</Text>
+                    <Text style={styles.verifyButtonText}>Send code</Text>
                   )}
                 </TouchableOpacity>
               )}
             </View>
             {isDevMode && !emailVerified && (
-              <Text style={styles.devHint}>Dev Mode: Use OTP {devOTP}</Text>
+              <Text style={styles.devHint}>Dev Mode: Use OTP {emailDevOTP}</Text>
             )}
           </View>
 
@@ -417,37 +399,12 @@ export const MerchantRegistrationScreen: React.FC<
               <TextInput
                 style={[styles.input, styles.inputWithVerify]}
                 value={phoneNumber}
-                onChangeText={(text) => {
-                  setPhoneNumber(text);
-                  if (phoneVerified) setPhoneVerified(false);
-                }}
+                onChangeText={setPhoneNumber}
                 placeholder="+1234567890"
                 placeholderTextColor={COLORS.textSecondary}
                 keyboardType="phone-pad"
-                editable={!phoneVerified}
               />
-              {phoneVerified ? (
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.verifyButton}
-                  onPress={handleSendPhoneOTP}
-                  disabled={phoneOTPLoading}
-                >
-                  {phoneOTPLoading ? (
-                    <ActivityIndicator size="small" color={COLORS.primary} />
-                  ) : (
-                    <Text style={styles.verifyButtonText}>Verify</Text>
-                  )}
-                </TouchableOpacity>
-              )}
             </View>
-            {isDevMode && !phoneVerified && (
-              <Text style={styles.devHint}>Dev Mode: Use OTP {devOTP}</Text>
-            )}
           </View>
 
           {/* Business Address */}
@@ -484,7 +441,7 @@ export const MerchantRegistrationScreen: React.FC<
               onPress={() => setShowCategoryDropdown(true)}
             >
               <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
-                {category 
+                {category
                   ? CATEGORIES.find(c => c.value === category)?.label || customCategory
                   : 'Select a category'}
               </Text>
@@ -594,95 +551,62 @@ export const MerchantRegistrationScreen: React.FC<
               <TouchableOpacity onPress={() => {
                 setShowEmailOTPModal(false);
                 setEmailOTP('');
+                setEmailOTPError('');
               }}>
                 <Ionicons name="close" size={24} color={COLORS.text} />
               </TouchableOpacity>
             </View>
             <Text style={styles.otpModalSubtitle}>
-              Enter the 6-digit code sent to {email}
+              Enter the {MERCHANT_EMAIL_OTP_LENGTH}-digit code sent to {email}
             </Text>
-            <TextInput
-              style={styles.otpInput}
+            <PINInput
               value={emailOTP}
-              onChangeText={setEmailOTP}
-              placeholder="000000"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="number-pad"
-              maxLength={6}
+              onChange={handleEmailOTPChange}
+              onComplete={handleVerifyEmailOTP}
+              length={MERCHANT_EMAIL_OTP_LENGTH}
               autoFocus
+              disabled={emailOTPLoading}
+              secure={false}
+              accessibilityLabel="Email verification code"
+              textContentType="oneTimeCode"
+              autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
             />
             {isDevMode && (
-              <Text style={styles.devHintModal}>Dev Mode: Use {devOTP}</Text>
+              <Text style={styles.devHintModal}>Dev Mode: Use {emailDevOTP}</Text>
+            )}
+            {emailOTPError ? (
+              <View style={styles.otpErrorRow}>
+                <Ionicons name="alert-circle-outline" size={16} color={COLORS.error} />
+                <Text style={styles.otpErrorText}>{emailOTPError}</Text>
+              </View>
+            ) : (
+              <Text style={styles.otpHelperText}>
+                The code verifies automatically when all {MERCHANT_EMAIL_OTP_LENGTH} digits are entered.
+              </Text>
             )}
             <TouchableOpacity
-              style={[styles.otpVerifyButton, emailOTPLoading && styles.buttonDisabled]}
-              onPress={handleVerifyEmailOTP}
-              disabled={emailOTPLoading}
+              style={[
+                styles.otpVerifyButton,
+                (emailOTPLoading || !emailOTPComplete) && styles.buttonDisabled,
+              ]}
+              onPress={() => handleVerifyEmailOTP()}
+              disabled={emailOTPLoading || !emailOTPComplete}
             >
               {emailOTPLoading ? (
-                <ActivityIndicator color={COLORS.card} />
+                <View style={styles.buttonContent}>
+                  <ActivityIndicator color={COLORS.card} size="small" />
+                  <Text style={styles.buttonText}>Checking code...</Text>
+                </View>
               ) : (
-                <Text style={styles.buttonText}>Verify Email</Text>
+                <Text style={styles.buttonText}>
+                  {emailOTPComplete ? 'Verify Email' : `Enter ${MERCHANT_EMAIL_OTP_LENGTH} digits`}
+                </Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.resendButton}
+              style={[styles.resendButton, emailOTPLoading && styles.buttonDisabled]}
               onPress={handleSendEmailOTP}
-            >
-              <Text style={styles.resendButtonText}>Resend Code</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Phone OTP Modal */}
-      <Modal
-        visible={showPhoneOTPModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPhoneOTPModal(false)}
-      >
-        <View style={styles.otpModalOverlay}>
-          <View style={styles.otpModalContent}>
-            <View style={styles.otpModalHeader}>
-              <Text style={styles.otpModalTitle}>Verify Phone</Text>
-              <TouchableOpacity onPress={() => {
-                setShowPhoneOTPModal(false);
-                setPhoneOTP('');
-              }}>
-                <Ionicons name="close" size={24} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.otpModalSubtitle}>
-              Enter the 6-digit code sent to {phoneNumber}
-            </Text>
-            <TextInput
-              style={styles.otpInput}
-              value={phoneOTP}
-              onChangeText={setPhoneOTP}
-              placeholder="000000"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus
-            />
-            {isDevMode && (
-              <Text style={styles.devHintModal}>Dev Mode: Use {devOTP}</Text>
-            )}
-            <TouchableOpacity
-              style={[styles.otpVerifyButton, phoneOTPLoading && styles.buttonDisabled]}
-              onPress={handleVerifyPhoneOTP}
-              disabled={phoneOTPLoading}
-            >
-              {phoneOTPLoading ? (
-                <ActivityIndicator color={COLORS.card} />
-              ) : (
-                <Text style={styles.buttonText}>Verify Phone</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.resendButton}
-              onPress={handleSendPhoneOTP}
+              disabled={emailOTPLoading}
             >
               <Text style={styles.resendButtonText}>Resend Code</Text>
             </TouchableOpacity>
@@ -803,6 +727,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.card,
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
   // Modal styles
   modalOverlay: {
     flex: 1,
@@ -897,7 +827,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm + 2,
     borderRadius: BORDER_RADIUS.md,
-    minWidth: 70,
+    minWidth: 92,
     alignItems: 'center',
   },
   verifyButtonText: {
@@ -956,17 +886,30 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     textAlign: 'center',
   },
-  otpInput: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.xxl,
-    color: COLORS.text,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+  otpHelperText: {
+    minHeight: 22,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.sm,
     textAlign: 'center',
-    letterSpacing: 8,
+    marginTop: SPACING.md,
     marginBottom: SPACING.md,
+  },
+  otpErrorRow: {
+    minHeight: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
+  otpErrorText: {
+    flexShrink: 1,
+    color: COLORS.error,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   otpVerifyButton: {
     backgroundColor: COLORS.primary,

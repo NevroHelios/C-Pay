@@ -277,10 +277,10 @@ export async function sendEmailOTP(email: string): Promise<{
 
     // Production: Send email OTP via Supabase
     // Note: This requires setting up email templates in Supabase dashboard
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email: email,
       options: {
-        shouldCreateUser: false, // Don't create user, just verify email
+        shouldCreateUser: true,
       }
     });
 
@@ -320,7 +320,7 @@ export async function verifyEmailOTP(
     const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
     
     if (isDevMode && verificationId.startsWith('dev-email-')) {
-      if (otpCode === DEV_OTP) {
+      if (otpCode === DEV_OTP || otpCode.replace(/^0+/, '') === DEV_OTP.replace(/^0+/, '')) {
         const email = verificationId.replace('dev-email-', '');
         console.log('🔧 Development email OTP verified successfully');
         return {
@@ -363,7 +363,7 @@ export async function verifyEmailOTP(
 }
 
 /**
- * Send OTP to phone number (for merchant registration - simpler version)
+ * Send OTP to phone number when an SMS provider is configured
  */
 export async function sendPhoneOTP(phoneNumber: string): Promise<{
   success: boolean;
@@ -396,7 +396,7 @@ export async function sendPhoneOTP(phoneNumber: string): Promise<{
 }
 
 /**
- * Verify phone OTP (for merchant registration - simpler version)
+ * Verify phone OTP when an SMS provider is configured
  */
 export async function verifyPhoneOTP(
   verificationId: string,
