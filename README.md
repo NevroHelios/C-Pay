@@ -190,7 +190,7 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 <details open>
 <summary><b>Authentication & Wallet Security</b></summary>
 
-- 📱 **Phone Verification** - OTP-based authentication with development fallback credentials.
+- 📱 **Phone Verification** - OTP-based authentication with dev-mode-only fallback credentials.
 - 🔐 **6-Digit PIN** - Used to encrypt and unlock the local Stellar wallet.
 - 👆 **Biometric Unlock** - Optional device biometric backup/unlock through the dedicated biometric setup screen.
 - 🔑 **Stellar Wallet** - Device-generated Stellar keypair for each user.
@@ -566,7 +566,7 @@ npm expo start
 4. Do not put the service-role key in the Expo app.
 5. Run the SQL in `App/supabase_schema.sql`.
 6. For production OTP, configure Supabase phone auth with an SMS provider.
-7. For local development, use `EXPO_PUBLIC_DEV_PHONE` and `EXPO_PUBLIC_DEV_OTP`.
+7. For local development only, set `EXPO_PUBLIC_DEV_MODE=true` before using `EXPO_PUBLIC_DEV_PHONE` and `EXPO_PUBLIC_DEV_OTP`.
 
 ### 2. Blockchain Setup
 
@@ -666,12 +666,15 @@ TRUSTLINE_LIMIT=1000000000
 FEE_BUMP_MULTIPLIER=10
 TRANSACTION_TIMEOUT_SECONDS=60
 
+ENABLE_ADD_MONEY=true
 ADD_MONEY_AMOUNT=100
 MAX_ADD_MONEY_AMOUNT=1000
 ADD_MONEY_COOLDOWN_MS=86400000
 MAX_PAYMENT_AMOUNT=100000
 IDEMPOTENCY_TTL_MS=600000
 
+RELAYER_AUTH_REQUIRED=false
+SUPABASE_JWT_SECRET=
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 LOW_XLM_THRESHOLD=5
@@ -729,6 +732,7 @@ EXPO_PUBLIC_CPINR_ASSET_ISSUER=GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRF
 EXPO_PUBLIC_STELLAR_RELAYER_URL=http://<your computer LAN IP>:3000
 
 EXPO_PUBLIC_DEV_MODE=false
+# Only used when EXPO_PUBLIC_DEV_MODE=true
 EXPO_PUBLIC_DEV_PHONE=+911234567890
 EXPO_PUBLIC_DEV_OTP=123456
 ```
@@ -770,8 +774,8 @@ npx expo start --clear
 | `EXPO_PUBLIC_CPINR_ASSET_ISSUER` | Yes | CPINR issuer public key |
 | `EXPO_PUBLIC_STELLAR_RELAYER_URL` | Yes for real device/builds | Relayer URL reachable from the app |
 | `EXPO_PUBLIC_DEV_MODE` | Optional | Development mode flag |
-| `EXPO_PUBLIC_DEV_PHONE` | Optional | Local fallback phone |
-| `EXPO_PUBLIC_DEV_OTP` | Optional | Local fallback OTP |
+| `EXPO_PUBLIC_DEV_PHONE` | Optional | Local fallback phone, only active when dev mode is true |
+| `EXPO_PUBLIC_DEV_OTP` | Optional | Local fallback OTP, only active when dev mode is true |
 
 ### 🧾 Relayer Backend Variables
 
@@ -790,11 +794,14 @@ npx expo start --clear
 | `TRUSTLINE_LIMIT` | Yes | CPINR trustline limit |
 | `FEE_BUMP_MULTIPLIER` | Yes | Fee-bump max fee multiplier |
 | `TRANSACTION_TIMEOUT_SECONDS` | Yes | Stellar transaction timeout |
+| `ENABLE_ADD_MONEY` | No | Defaults to enabled on testnet and disabled on public |
 | `ADD_MONEY_AMOUNT` | Yes | Default Add Money amount |
 | `MAX_ADD_MONEY_AMOUNT` | Yes | Maximum Add Money API amount |
 | `ADD_MONEY_COOLDOWN_MS` | Yes | Per-account Add Money cooldown |
 | `MAX_PAYMENT_AMOUNT` | Yes | Maximum payment amount |
 | `IDEMPOTENCY_TTL_MS` | Yes | Duplicate request cache lifetime |
+| `RELAYER_AUTH_REQUIRED` | No | Defaults to true on public network |
+| `SUPABASE_JWT_SECRET` | Required when auth is enabled | Verifies Supabase access tokens sent by the app |
 | `RATE_LIMIT_WINDOW_MS` | Yes | Rate limit window |
 | `RATE_LIMIT_MAX_REQUESTS` | Yes | Rate limit count |
 | `LOW_XLM_THRESHOLD` | Yes | Sponsor XLM warning threshold |
@@ -1204,7 +1211,7 @@ Check:
 <details open>
 <summary><b>OTP logs say development fallback</b></summary>
 
-If the phone number equals `EXPO_PUBLIC_DEV_PHONE`, the app uses local fallback OTP from `EXPO_PUBLIC_DEV_OTP`. This is expected for local development. For real OTP, configure Supabase phone auth and use a real phone number.
+The local fallback OTP is only active when `EXPO_PUBLIC_DEV_MODE=true`. For real OTP, keep dev mode false, configure Supabase phone auth, and use a real phone number.
 
 </details>
 
@@ -1216,9 +1223,11 @@ If the phone number equals `EXPO_PUBLIC_DEV_PHONE`, the app uses local fallback 
 - Set `EXPO_PUBLIC_STELLAR_RELAYER_URL` to the deployed HTTPS backend URL for EAS builds.
 - Store relayer secrets in infrastructure secrets, not in source files.
 - Restrict `CORS_ORIGIN`.
+- Set `RELAYER_AUTH_REQUIRED=true` and `SUPABASE_JWT_SECRET` for production/public-network relayer deployments.
+- Keep `ENABLE_ADD_MONEY=false` on public network unless you have a real abuse-resistant funding policy.
 - Monitor sponsor XLM and distribution CPINR.
 - Keep issuer/admin secrets offline or protected by multisig.
-- Replace permissive Supabase development RLS policies with user-scoped policies.
+- Apply `App/supabase_schema.sql` after this update to replace the old permissive Supabase RLS policies with user-scoped policies and limited lookup RPCs.
 - Use a reliable public-network Horizon/Soroban RPC provider for production.
 - Update README, `.env` files, app config, and EAS env after redeploying contracts.
 
@@ -1245,7 +1254,7 @@ If the phone number equals `EXPO_PUBLIC_DEV_PHONE`, the app uses local fallback 
 
 ### Phase 3 - Production Readiness
 
-- ⏳ Production Supabase RLS
+- ✅ User-scoped Supabase RLS baseline
 - ⏳ HTTPS relayer deployment
 - ⏳ Secret rotation and custody runbook
 - ⏳ Monitoring and alerting

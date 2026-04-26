@@ -26,5 +26,8 @@
   },
   "devDependencies": {
     "jest": "^29.7.0"
+  },
+  "overrides": {
+    "axios": "1.15.2"
   }
 }
