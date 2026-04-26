@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const StellarSdk = require('@stellar/stellar-sdk');
 
 const app = express();
@@ -35,7 +36,7 @@ const addMoneyCooldowns = new Map();
 let lowBalanceAlertSent = false;
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(cors({ origin: parseCorsOrigin(process.env.CORS_ORIGIN || '*') }));
 app.use(express.json({ limit: '64kb' }));
 
 const limiter = rateLimit({
@@ -123,7 +124,7 @@ app.get('/account/:accountId/balance', async (req, res) => {
   });
 });
 
-app.post('/accounts/prepare', async (req, res) => {
+app.post('/accounts/prepare', requireAuthenticatedUser, async (req, res) => {
   const accountId = assertAccountId(req.body.accountId, 'accountId');
   const status = await getAccountStatus(accountId);
 
@@ -177,7 +178,7 @@ app.post('/accounts/prepare', async (req, res) => {
   });
 });
 
-app.post('/accounts/submit', async (req, res) => {
+app.post('/accounts/submit', requireAuthenticatedUser, async (req, res) => {
   const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const tx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, config.passphrase);
   const result = await server.submitTransaction(tx);
@@ -189,7 +190,7 @@ app.post('/accounts/submit', async (req, res) => {
   });
 });
 
-app.post('/payments/submit', async (req, res) => {
+app.post('/payments/submit', requireAuthenticatedUser, async (req, res) => {
   const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const idempotencyKey = normalizeOptionalString(req.body.idempotencyKey);
 
@@ -224,7 +225,14 @@ app.post('/payments/submit', async (req, res) => {
   res.json(response);
 });
 
-app.post('/add-money', async (req, res) => {
+app.post('/add-money', requireAuthenticatedUser, async (req, res) => {
+  if (!config.addMoneyEnabled) {
+    return res.status(403).json({
+      error: 'Add Money is disabled for this network',
+      code: 'ADD_MONEY_DISABLED',
+    });
+  }
+
   const accountId = assertAccountId(req.body.accountId, 'accountId');
   const amount = normalizeAmount(req.body.amount || config.addMoneyAmount, config.maxAddMoneyAmount);
   const idempotencyKey = normalizeOptionalString(req.body.idempotencyKey);
@@ -357,8 +365,15 @@ function loadConfig() {
   const distributionSecret = requireEnv('DISTRIBUTION_SECRET');
   const assetCode = process.env.CPINR_ASSET_CODE || 'CPINR';
   const assetIssuer = requireEnv('CPINR_ASSET_ISSUER');
+  const authRequired = readBooleanEnv('RELAYER_AUTH_REQUIRED', networkName === 'public');
+  const addMoneyEnabled = readBooleanEnv('ENABLE_ADD_MONEY', networkName !== 'public');
+  const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET || '';
 
   assertTrustedHorizonUrl(horizonUrl);
+
+  if (authRequired && !supabaseJwtSecret) {
+    throw new Error('SUPABASE_JWT_SECRET is required when relayer authentication is enabled');
+  }
 
   return {
     networkName,
@@ -380,7 +395,19 @@ function loadConfig() {
     idempotencyTtlMs: Number(process.env.IDEMPOTENCY_TTL_MS || 10 * 60 * 1000),
     lowXlmThreshold: Number(process.env.LOW_XLM_THRESHOLD || 5),
     lowAssetThreshold: Number(process.env.LOW_CPINR_THRESHOLD || 1000),
+    authRequired,
+    supabaseJwtSecret,
+    addMoneyEnabled,
   };
+}
+
+function readBooleanEnv(name, defaultValue) {
+  const value = process.env[name];
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 }
 
 function requireEnv(name) {
@@ -389,6 +416,84 @@ function requireEnv(name) {
     throw new Error(`${name} is required`);
   }
   return value;
+}
+
+function parseCorsOrigin(value) {
+  if (value === '*') {
+    return '*';
+  }
+
+  const origins = value
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+  return origins.length <= 1 ? origins[0] || '*' : origins;
+}
+
+function requireAuthenticatedUser(req, res, next) {
+  if (!config.authRequired) {
+    return next();
+  }
+
+  try {
+    req.auth = verifySupabaseJwt(req.get('authorization') || '');
+    return next();
+  } catch (error) {
+    return res.status(401).json({
+      error: error.message || 'Authentication required',
+      code: 'AUTH_REQUIRED',
+    });
+  }
+}
+
+function verifySupabaseJwt(authorizationHeader) {
+  const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new Error('Authentication required');
+  }
+
+  const token = match[1];
+  const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
+  if (!encodedHeader || !encodedPayload || !encodedSignature) {
+    throw new Error('Invalid authentication token');
+  }
+
+  const header = JSON.parse(base64UrlDecode(encodedHeader).toString('utf8'));
+  if (header.alg !== 'HS256') {
+    throw new Error('Unsupported authentication token');
+  }
+
+  const signedPayload = `${encodedHeader}.${encodedPayload}`;
+  const expectedSignature = crypto
+    .createHmac('sha256', config.supabaseJwtSecret)
+    .update(signedPayload)
+    .digest();
+  const actualSignature = base64UrlDecode(encodedSignature);
+
+  if (
+    actualSignature.length !== expectedSignature.length ||
+    !crypto.timingSafeEqual(actualSignature, expectedSignature)
+  ) {
+    throw new Error('Invalid authentication token');
+  }
+
+  const claims = JSON.parse(base64UrlDecode(encodedPayload).toString('utf8'));
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!claims.sub || (claims.exp && claims.exp <= nowSeconds)) {
+    throw new Error('Expired authentication token');
+  }
+
+  if (claims.role && claims.role !== 'authenticated') {
+    throw new Error('Authenticated user token required');
+  }
+
+  return claims;
+}
+
+function base64UrlDecode(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64');
 }
 
 function assertTrustedHorizonUrl(horizonUrl) {
@@ -585,6 +690,13 @@ function validatePaymentTransaction(transaction) {
   const operation = transaction.operations[0];
   if (operation.type !== 'payment') {
     const error = new Error('Only payment operations are accepted');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const operationSource = operation.source || transaction.source;
+  if (operationSource !== transaction.source) {
+    const error = new Error('Payment operation source must match transaction source');
     error.statusCode = 400;
     throw error;
   }
