@@ -129,6 +129,7 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
       animationType="none"
       statusBarTranslucent
       onRequestClose={onDismiss}
+      accessibilityViewIsModal
     >
       <Animated.View
         style={[
@@ -151,6 +152,9 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
               opacity: fadeAnim,
             },
           ]}
+          accessible
+          accessibilityRole="alert"
+          accessibilityLabel={message ? `${title}. ${message}` : title}
         >
           <View style={styles.alertContent}>
             {/* Icon */}
@@ -186,6 +190,8 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
                     ]}
                     onPress={() => handleButtonPress(button)}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={button.text}
                   >
                     <Text
                       style={[

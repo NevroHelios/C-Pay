@@ -183,7 +183,9 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
 
     // In dev mode, bypass OTP verification
     const devOTP = process.env.EXPO_PUBLIC_DEV_OTP || '123456';
-    const isDevVerification = isDevMode || verificationId === 'dev-verification-id';
+    const isDevVerification =
+      isDevMode &&
+      (verificationId === 'dev-bypass' || verificationId === 'dev-verification-id');
     
     let result;
     if (isDevVerification && otpToVerify === devOTP) {

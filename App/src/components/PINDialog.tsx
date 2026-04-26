@@ -58,6 +58,7 @@ export const PINDialog: React.FC<PINDialogProps> = ({
       transparent
       animationType="fade"
       onRequestClose={onCancel}
+      accessibilityViewIsModal
     >
       <View style={styles.overlay}>
         <Animated.View
@@ -67,6 +68,9 @@ export const PINDialog: React.FC<PINDialogProps> = ({
               transform: [{ scale: scaleAnim }],
             },
           ]}
+          accessible
+          accessibilityRole="alert"
+          accessibilityLabel={`${title}. ${message}`}
         >
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
@@ -83,6 +87,8 @@ export const PINDialog: React.FC<PINDialogProps> = ({
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
               onPress={onCancel}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel PIN entry"
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -95,6 +101,9 @@ export const PINDialog: React.FC<PINDialogProps> = ({
               ]}
               onPress={() => handleSubmit()}
               disabled={pin.length !== 6 || submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Confirm PIN"
+              accessibilityState={{ disabled: pin.length !== 6 || submitting, busy: submitting }}
             >
               {submitting ? (
                 <ActivityIndicator color={COLORS.textInverse} />

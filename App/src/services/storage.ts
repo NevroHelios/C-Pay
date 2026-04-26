@@ -50,17 +50,20 @@ export function generateTransactionId(): string {
 // Hybrid storage: Local (AsyncStorage) + Cloud (Supabase)
 // Works offline, syncs when online
 
+async function getCurrentAuthUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id || null;
+}
+
 // Helper function to get user's display name from Supabase by wallet address
 export async function getUserDisplayName(walletAddress: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('display_name')
-      .eq('wallet_address', walletAddress)
-      .single();
+    const { data, error } = await supabase.rpc('get_public_wallet_profile', {
+      p_wallet_address: walletAddress,
+    });
 
-    if (data && !error) {
-      return data.display_name;
+    if (!error && Array.isArray(data) && data[0]?.display_name) {
+      return data[0].display_name;
     }
     return null;
   } catch (error) {
@@ -72,12 +75,14 @@ export async function getUserDisplayName(walletAddress: string): Promise<string 
 // Helper function to get or create user in Supabase
 async function getOrCreateUser(walletAddress: string, phoneNumber?: string, displayName?: string): Promise<string | null> {
   try {
+    const authUserId = await getCurrentAuthUserId();
+
     // Check if user exists
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('id')
       .eq('wallet_address', walletAddress)
-      .single();
+      .maybeSingle();
 
     if (existingUser && !fetchError) {
       return existingUser.id;
@@ -89,6 +94,7 @@ async function getOrCreateUser(walletAddress: string, phoneNumber?: string, disp
     const { data: newUser, error: insertError } = await supabase
       .from('users')
       .insert({
+        auth_user_id: authUserId,
         wallet_address: walletAddress,
         phone_number: phoneNumber || null,
         display_name: displayName || null,

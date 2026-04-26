@@ -174,7 +174,7 @@ export const ANIMATION = {
 export const BLOCKCHAIN_CONFIG = {
   NETWORK: process.env.EXPO_PUBLIC_STELLAR_NETWORK || 'testnet',
   HORIZON_URL: process.env.EXPO_PUBLIC_STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org',
-  RELAYER_URL: process.env.EXPO_PUBLIC_STELLAR_RELAYER_URL || 'http://localhost:3000',
+  RELAYER_URL: process.env.EXPO_PUBLIC_STELLAR_RELAYER_URL || '',
   CPINR_ASSET_CODE: process.env.EXPO_PUBLIC_CPINR_ASSET_CODE || 'CPINR',
   CPINR_ASSET_ISSUER: process.env.EXPO_PUBLIC_CPINR_ASSET_ISSUER || '',
   EXPLORER_URL: process.env.EXPO_PUBLIC_STELLAR_EXPLORER_URL || 'https://stellar.expert/explorer/testnet',

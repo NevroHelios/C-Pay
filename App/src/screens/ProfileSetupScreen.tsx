@@ -126,10 +126,14 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       }
     }
 
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUserId = sessionData.session?.user.id || null;
+
     const { error: dbError } = await supabase
       .from('users')
       .upsert(
         {
+          auth_user_id: authUserId,
           wallet_address: walletAddress,
           display_name: name,
           phone_number: phoneToSave,
@@ -161,8 +165,9 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       setLoading(true);
 
       // Check if phone number is development number
+      const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
       const devPhoneNumber = process.env.EXPO_PUBLIC_DEV_PHONE || '+911234567890';
-      const isDevPhone = phoneNumber === devPhoneNumber;
+      const isDevPhone = isDevMode && phoneNumber === devPhoneNumber;
       
       // Only save phone number if it's not the development number
       const phoneToSave = isDevPhone ? null : phoneNumber;

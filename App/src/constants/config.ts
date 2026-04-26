@@ -17,7 +17,7 @@ export const STELLAR_CONFIG = {
   NETWORK: getEnvVar('EXPO_PUBLIC_STELLAR_NETWORK', 'testnet'),
   HORIZON_URL: getEnvVar('EXPO_PUBLIC_STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org'),
   NETWORK_PASSPHRASE: getEnvVar('EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015'),
-  RELAYER_URL: getEnvVar('EXPO_PUBLIC_STELLAR_RELAYER_URL', 'http://localhost:3000'),
+  RELAYER_URL: getEnvVar('EXPO_PUBLIC_STELLAR_RELAYER_URL', ''),
   CPINR_ASSET_CODE: getEnvVar('EXPO_PUBLIC_CPINR_ASSET_CODE', 'CPINR'),
   CPINR_ASSET_ISSUER: getEnvVar('EXPO_PUBLIC_CPINR_ASSET_ISSUER', ''),
   EXPLORER_URL: getEnvVar('EXPO_PUBLIC_STELLAR_EXPLORER_URL', 'https://stellar.expert/explorer/testnet'),

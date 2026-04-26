@@ -6,7 +6,12 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_DEV_MODE": "true",
+        "EXPO_PUBLIC_DEV_PHONE": "+911234567890",
+        "EXPO_PUBLIC_DEV_OTP": "123456"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -25,7 +30,7 @@
         "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
         "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
         "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet",
-        "EXPO_PUBLIC_DEV_MODE": "false",
+        "EXPO_PUBLIC_DEV_MODE": "true",
         "EXPO_PUBLIC_DEV_PHONE": "+911234567890",
         "EXPO_PUBLIC_DEV_OTP": "123456"
       }
@@ -33,7 +38,7 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096",

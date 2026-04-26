@@ -126,6 +126,9 @@ export const PINInput: React.FC<PINInputProps> = memo(({
           selectionColor="transparent"
           editable={!disabled}
           accessibilityLabel={accessibilityLabel}
+          accessibilityHint={`Enter ${length} digits`}
+          accessibilityValue={{ text: `${value.length} of ${length} digits entered` }}
+          accessibilityState={{ disabled }}
         />
       </View>
 

@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as StellarSdk from '@stellar/stellar-base';
 import { StellarWallet } from './wallet';
+import { supabase } from './supabase';
 
 const getEnvVar = (key: string, fallback: string = ''): string => {
   const processEnv = process.env[key];
@@ -23,11 +24,17 @@ const getExpoDevHost = (): string => {
   return String(hostUri).split(':')[0] || '';
 };
 
+const isDevelopmentRuntime = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__;
+
 const resolveRelayerUrl = (): string => {
   const configuredUrl = getEnvVar('EXPO_PUBLIC_STELLAR_RELAYER_URL', '');
 
   if (configuredUrl) {
     return configuredUrl.replace(/\/+$/, '');
+  }
+
+  if (!isDevelopmentRuntime()) {
+    return '';
   }
 
   const expoHost = getExpoDevHost();
@@ -393,18 +400,29 @@ async function relayerRequest<T = any>(
   options: RequestInit = {},
   timeoutMs: number = RELAYER_TIMEOUT_MS
 ): Promise<T> {
+  if (!RELAYER_URL) {
+    throw new RelayerRequestError('Payment service URL is not configured for this build.', {
+      code: 'RELAYER_URL_MISSING',
+    });
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
 
   try {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    const optionHeaders = (options.headers || {}) as Record<string, string>;
+
     response = await fetch(`${RELAYER_URL}${path}`, {
       ...options,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...optionHeaders,
       },
     });
   } catch (error: any) {

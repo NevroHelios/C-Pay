@@ -6,6 +6,11 @@ import { generateCPayId } from '../utils/cpayId';
 // Event emitter for real-time merchant status updates
 export const merchantEvents = new EventEmitter();
 
+async function getCurrentAuthUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id || null;
+}
+
 export interface Merchant {
   id?: string;
   business_name: string;
@@ -142,14 +147,16 @@ export async function registerAsMerchant(merchant: Merchant): Promise<{
 }> {
   try {
     // Generate C-Pay ID if phone number is provided
-    const cpayId = merchant.wallet_address 
+    const cpayId = merchant.wallet_address
       ? generateCPayId(merchant.phone_number || '', merchant.wallet_address)
       : undefined;
-    
+    const authUserId = await getCurrentAuthUserId();
+
     const { data, error } = await supabase
       .from('merchants')
       .insert({
         ...merchant,
+        auth_user_id: authUserId,
         cpay_id: cpayId, // Save C-Pay ID to database
       })
       .select()
@@ -206,18 +213,16 @@ export async function getMerchantById(
   merchantId: string
 ): Promise<Merchant | null> {
   try {
-    const { data, error } = await supabase
-      .from('merchants')
-      .select('*')
-      .eq('id', merchantId)
-      .single();
+    const { data, error } = await supabase.rpc('get_public_merchant_by_id', {
+      p_merchant_id: merchantId,
+    });
 
     if (error) {
       console.error('Error getting merchant by ID:', error);
       return null;
     }
 
-    return data;
+    return Array.isArray(data) ? data[0] || null : null;
   } catch (error) {
     console.error('Error getting merchant by ID:', error);
     return null;
@@ -232,22 +237,16 @@ export async function getMerchantByAddress(
   walletAddress: string
 ): Promise<Merchant | null> {
   try {
-    const { data, error } = await supabase
-      .from('merchants')
-      .select('*')
-      .eq('wallet_address', walletAddress)
-      .single();
+    const { data, error } = await supabase.rpc('get_public_merchant_by_address', {
+      p_wallet_address: walletAddress,
+    });
 
     if (error) {
-      // Not finding a merchant is normal (customer-to-customer transfer)
-      if (error.code === 'PGRST116') {
-        return null;
-      }
       console.error('Error getting merchant by address:', error);
       return null;
     }
 
-    return data;
+    return Array.isArray(data) ? data[0] || null : null;
   } catch (error) {
     console.error('Error getting merchant by address:', error);
     return null;

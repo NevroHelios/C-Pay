@@ -5,6 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
     wallet_address TEXT UNIQUE NOT NULL,
     cpay_id TEXT UNIQUE,
     phone_number TEXT UNIQUE,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS merchants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     business_name TEXT NOT NULL,
     wallet_address TEXT UNIQUE NOT NULL,
     cpay_id TEXT UNIQUE,
@@ -111,6 +113,7 @@ CREATE TABLE IF NOT EXISTS relayer_idempotency_keys (
 -- Existing-project compatibility. Safe for empty/new projects and useful if
 -- the table already exists from an older local setup.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
@@ -119,6 +122,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS cpinr_asset_issuer TEXT;
 ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
 
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR';
@@ -135,8 +139,10 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_name TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recipient_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id);
 CREATE INDEX IF NOT EXISTS idx_users_cpay_id ON users(cpay_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_wallet_address ON merchants(wallet_address);
+CREATE INDEX IF NOT EXISTS idx_merchants_auth_user_id ON merchants(auth_user_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_cpay_id ON merchants(cpay_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_hash ON transactions(tx_hash);
@@ -150,6 +156,22 @@ CREATE INDEX IF NOT EXISTS idx_add_money_claims_wallet_address ON add_money_clai
 CREATE INDEX IF NOT EXISTS idx_add_money_claims_claimed_at ON add_money_claims(claimed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_relayer_idempotency_expires_at ON relayer_idempotency_keys(expires_at);
 
+-- Backfill ownership for existing rows before stricter RLS takes effect.
+-- Supabase phone auth stores verified numbers in auth.users.phone.
+UPDATE users u
+SET auth_user_id = au.id
+FROM auth.users au
+WHERE u.auth_user_id IS NULL
+  AND u.phone_number IS NOT NULL
+  AND au.phone = u.phone_number;
+
+UPDATE merchants m
+SET auth_user_id = u.auth_user_id
+FROM users u
+WHERE m.auth_user_id IS NULL
+  AND m.wallet_address = u.wallet_address
+  AND u.auth_user_id IS NOT NULL;
+
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE merchants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
@@ -157,44 +179,217 @@ ALTER TABLE merchant_qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE add_money_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE relayer_idempotency_keys ENABLE ROW LEVEL SECURITY;
 
+CREATE OR REPLACE FUNCTION set_row_auth_user_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.auth_user_id IS NULL THEN
+    NEW.auth_user_id = auth.uid();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS set_users_auth_user_id ON users;
+CREATE TRIGGER set_users_auth_user_id
+BEFORE INSERT ON users
+FOR EACH ROW EXECUTE FUNCTION set_row_auth_user_id();
+
+DROP TRIGGER IF EXISTS set_merchants_auth_user_id ON merchants;
+CREATE TRIGGER set_merchants_auth_user_id
+BEFORE INSERT ON merchants
+FOR EACH ROW EXECUTE FUNCTION set_row_auth_user_id();
+
+CREATE OR REPLACE FUNCTION current_wallet_address()
+RETURNS TEXT AS $$
+  SELECT wallet_address
+  FROM users
+  WHERE auth_user_id = auth.uid()
+  LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION get_public_wallet_profile(p_wallet_address TEXT)
+RETURNS TABLE (
+  wallet_address TEXT,
+  cpay_id TEXT,
+  display_name TEXT
+) AS $$
+  SELECT u.wallet_address, u.cpay_id, u.display_name
+  FROM users u
+  WHERE u.wallet_address = p_wallet_address;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION resolve_cpay_id(p_cpay_id TEXT)
+RETURNS TABLE (
+  wallet_address TEXT,
+  cpay_id TEXT,
+  display_name TEXT,
+  account_type TEXT
+) AS $$
+  SELECT u.wallet_address, u.cpay_id, u.display_name, 'user'::TEXT
+  FROM users u
+  WHERE lower(u.cpay_id) = lower(p_cpay_id)
+  UNION ALL
+  SELECT m.wallet_address, m.cpay_id, m.business_name AS display_name, 'merchant'::TEXT
+  FROM merchants m
+  WHERE lower(m.cpay_id) = lower(p_cpay_id) AND m.is_active = TRUE
+  LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION get_public_merchant_by_id(p_merchant_id UUID)
+RETURNS TABLE (
+  id UUID,
+  business_name TEXT,
+  wallet_address TEXT,
+  cpay_id TEXT,
+  category TEXT,
+  description TEXT,
+  logo_url TEXT,
+  is_active BOOLEAN
+) AS $$
+  SELECT m.id, m.business_name, m.wallet_address, m.cpay_id, m.category, m.description, m.logo_url, m.is_active
+  FROM merchants m
+  WHERE m.id = p_merchant_id AND m.is_active = TRUE;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION get_public_merchant_by_address(p_wallet_address TEXT)
+RETURNS TABLE (
+  id UUID,
+  business_name TEXT,
+  wallet_address TEXT,
+  cpay_id TEXT,
+  category TEXT,
+  description TEXT,
+  logo_url TEXT,
+  is_active BOOLEAN
+) AS $$
+  SELECT m.id, m.business_name, m.wallet_address, m.cpay_id, m.category, m.description, m.logo_url, m.is_active
+  FROM merchants m
+  WHERE m.wallet_address = p_wallet_address AND m.is_active = TRUE;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION current_wallet_address() FROM PUBLIC;
+REVOKE ALL ON FUNCTION get_public_wallet_profile(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION resolve_cpay_id(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION get_public_merchant_by_id(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION get_public_merchant_by_address(TEXT) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION get_public_wallet_profile(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION resolve_cpay_id(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_public_merchant_by_id(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_public_merchant_by_address(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION current_wallet_address() TO authenticated;
+
 DROP POLICY IF EXISTS "users_select" ON users;
-CREATE POLICY "users_select" ON users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "users_select_own" ON users;
+CREATE POLICY "users_select_own" ON users
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
 
 DROP POLICY IF EXISTS "users_insert" ON users;
-CREATE POLICY "users_insert" ON users FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "users_insert_own" ON users;
+CREATE POLICY "users_insert_own" ON users
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND (auth_user_id IS NULL OR auth_user_id = auth.uid()));
 
 DROP POLICY IF EXISTS "users_update" ON users;
-CREATE POLICY "users_update" ON users FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "users_update_own" ON users;
+CREATE POLICY "users_update_own" ON users
+FOR UPDATE
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+WITH CHECK (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
 
 DROP POLICY IF EXISTS "merchants_select" ON merchants;
-CREATE POLICY "merchants_select" ON merchants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "merchants_select_own" ON merchants;
+CREATE POLICY "merchants_select_own" ON merchants
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
 
 DROP POLICY IF EXISTS "merchants_insert" ON merchants;
-CREATE POLICY "merchants_insert" ON merchants FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "merchants_insert_own" ON merchants;
+CREATE POLICY "merchants_insert_own" ON merchants
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND (auth_user_id IS NULL OR auth_user_id = auth.uid()));
 
 DROP POLICY IF EXISTS "merchants_update" ON merchants;
-CREATE POLICY "merchants_update" ON merchants FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "merchants_update_own" ON merchants;
+CREATE POLICY "merchants_update_own" ON merchants
+FOR UPDATE
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+WITH CHECK (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
 
 DROP POLICY IF EXISTS "transactions_select" ON transactions;
-CREATE POLICY "transactions_select" ON transactions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "transactions_select_participant" ON transactions;
+CREATE POLICY "transactions_select_participant" ON transactions
+FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND (
+    from_address = current_wallet_address()
+    OR to_address = current_wallet_address()
+    OR merchant_id IN (
+      SELECT id FROM merchants WHERE auth_user_id = auth.uid()
+    )
+  )
+);
 
 DROP POLICY IF EXISTS "transactions_insert" ON transactions;
-CREATE POLICY "transactions_insert" ON transactions FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "transactions_insert_participant" ON transactions;
+CREATE POLICY "transactions_insert_participant" ON transactions
+FOR INSERT
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (
+    from_address = current_wallet_address()
+    OR to_address = current_wallet_address()
+  )
+);
 
 DROP POLICY IF EXISTS "transactions_update" ON transactions;
-CREATE POLICY "transactions_update" ON transactions FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "transactions_update_participant" ON transactions;
+CREATE POLICY "transactions_update_participant" ON transactions
+FOR UPDATE
+USING (
+  auth.uid() IS NOT NULL AND (
+    from_address = current_wallet_address()
+    OR to_address = current_wallet_address()
+  )
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND (
+    from_address = current_wallet_address()
+    OR to_address = current_wallet_address()
+  )
+);
 
 DROP POLICY IF EXISTS "merchant_qr_codes_select" ON merchant_qr_codes;
-CREATE POLICY "merchant_qr_codes_select" ON merchant_qr_codes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "merchant_qr_codes_select_own" ON merchant_qr_codes;
+CREATE POLICY "merchant_qr_codes_select_own" ON merchant_qr_codes
+FOR SELECT
+USING (
+  auth.uid() IS NOT NULL AND merchant_id IN (
+    SELECT id FROM merchants WHERE auth_user_id = auth.uid()
+  )
+);
 
 DROP POLICY IF EXISTS "merchant_qr_codes_manage" ON merchant_qr_codes;
-CREATE POLICY "merchant_qr_codes_manage" ON merchant_qr_codes FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "merchant_qr_codes_manage_own" ON merchant_qr_codes;
+CREATE POLICY "merchant_qr_codes_manage_own" ON merchant_qr_codes
+FOR ALL
+USING (
+  auth.uid() IS NOT NULL AND merchant_id IN (
+    SELECT id FROM merchants WHERE auth_user_id = auth.uid()
+  )
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL AND merchant_id IN (
+    SELECT id FROM merchants WHERE auth_user_id = auth.uid()
+  )
+);
 
 DROP POLICY IF EXISTS "add_money_claims_service_select" ON add_money_claims;
-CREATE POLICY "add_money_claims_service_select" ON add_money_claims FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "relayer_idempotency_service_select" ON relayer_idempotency_keys;
-CREATE POLICY "relayer_idempotency_service_select" ON relayer_idempotency_keys FOR SELECT USING (true);
+
+REVOKE ALL ON add_money_claims FROM anon, authenticated;
+REVOKE ALL ON relayer_idempotency_keys FROM anon, authenticated;
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

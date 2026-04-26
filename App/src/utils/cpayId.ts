@@ -5,7 +5,7 @@ import { supabase } from '../services/supabase';
  * C-Pay ID System - User-friendly identifier instead of wallet addresses
  * Format: phone-or-handle@cpay+walletHash (no country code)
  * Example: 9876543210@cpayk8f3qz
- * 
+ *
  * This is ONLY for UI display. Payment operations still use actual Stellar accounts.
  */
 
@@ -58,7 +58,7 @@ export function generateCPayId(phoneNumber: string, walletAddress: string): stri
   const phone10Digit = phoneNumber.replace(/\D/g, '').slice(-10);
   const handle = phone10Digit || 'user';
   const suffix = getWalletFingerprint(walletAddress);
-  
+
   // Format: phone-or-handle@cpay+walletHash
   return `${handle}@cpay${suffix}`;
 }
@@ -70,21 +70,21 @@ export function generateCPayId(phoneNumber: string, walletAddress: string): stri
 export async function getCurrentUserCPayId(): Promise<string | null> {
   try {
     const walletAddress = await AsyncStorage.getItem('wallet_address');
-    
+
     if (!walletAddress) {
       return null;
     }
 
     const localPhone = await getStoredPhoneNumber();
     const localId = generateCPayId(localPhone || '', walletAddress);
-    
+
     // Fetch from database first, then self-heal missing/legacy IDs.
     const { data, error } = await supabase
       .from('users')
       .select('cpay_id, phone_number')
       .eq('wallet_address', walletAddress)
       .single();
-    
+
     if (!error && data?.cpay_id && !isLegacyAddressSuffixId(data.cpay_id, walletAddress)) {
       await AsyncStorage.setItem('cpay_id', data.cpay_id);
       return data.cpay_id;
@@ -131,7 +131,7 @@ export async function getCurrentMerchantCPayId(): Promise<string | null> {
       .select('cpay_id, phone_number')
       .eq('wallet_address', walletAddress)
       .single();
-    
+
     if (!error && data?.cpay_id && !isLegacyAddressSuffixId(data.cpay_id, walletAddress)) {
       return data.cpay_id;
     }
@@ -165,42 +165,12 @@ export async function getCurrentMerchantCPayId(): Promise<string | null> {
  */
 export async function getCPayIdByWallet(walletAddress: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('cpay_id, phone_number')
-      .eq('wallet_address', walletAddress)
-      .single();
-    
-    if (!error && data?.cpay_id && !isLegacyAddressSuffixId(data.cpay_id, walletAddress)) {
-      return data.cpay_id;
-    }
+    const { data, error } = await supabase.rpc('get_public_wallet_profile', {
+      p_wallet_address: walletAddress,
+    });
 
-    if (!error && data?.phone_number) {
-      const generatedId = generateCPayId(data.phone_number, walletAddress);
-      await supabase
-        .from('users')
-        .update({ cpay_id: generatedId })
-        .eq('wallet_address', walletAddress);
-      return generatedId;
-    }
-
-    const { data: merchantData, error: merchantError } = await supabase
-      .from('merchants')
-      .select('cpay_id, phone_number')
-      .eq('wallet_address', walletAddress)
-      .single();
-
-    if (!merchantError && merchantData?.cpay_id && !isLegacyAddressSuffixId(merchantData.cpay_id, walletAddress)) {
-      return merchantData.cpay_id;
-    }
-
-    if (!merchantError && merchantData?.phone_number) {
-      const generatedId = generateCPayId(merchantData.phone_number, walletAddress);
-      await supabase
-        .from('merchants')
-        .update({ cpay_id: generatedId })
-        .eq('wallet_address', walletAddress);
-      return generatedId;
+    if (!error && Array.isArray(data) && data[0]?.cpay_id && !isLegacyAddressSuffixId(data[0].cpay_id, walletAddress)) {
+      return data[0].cpay_id;
     }
 
     const currentWallet = await AsyncStorage.getItem('wallet_address');
@@ -288,28 +258,15 @@ export function extractPhoneFromCPayId(cpayId: string): string | null {
 export async function getWalletAddressFromCPayId(cpayId: string): Promise<string | null> {
   try {
     const normalizedId = cpayId.trim().toLowerCase();
-    // First try users table
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('wallet_address')
-      .eq('cpay_id', normalizedId)
-      .single();
-    
-    if (!userError && userData?.wallet_address) {
-      return userData.wallet_address;
+
+    const { data, error } = await supabase.rpc('resolve_cpay_id', {
+      p_cpay_id: normalizedId,
+    });
+
+    if (!error && Array.isArray(data) && data[0]?.wallet_address) {
+      return data[0].wallet_address;
     }
-    
-    // If not found in users, try merchants table
-    const { data: merchantData, error: merchantError } = await supabase
-      .from('merchants')
-      .select('wallet_address')
-      .eq('cpay_id', normalizedId)
-      .single();
-    
-    if (!merchantError && merchantData?.wallet_address) {
-      return merchantData.wallet_address;
-    }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting wallet address from C-Pay ID:', error);

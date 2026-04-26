@@ -2,9 +2,9 @@ import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearSessionPin } from './wallet';
 
-// Development fallback credentials (always available)
-const DEV_PHONE_NUMBER = process.env.EXPO_PUBLIC_DEV_PHONE || '+911234567890';
-const DEV_OTP = process.env.EXPO_PUBLIC_DEV_OTP || '123456';
+const IS_DEV_MODE = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
+const DEV_PHONE_NUMBER = IS_DEV_MODE ? process.env.EXPO_PUBLIC_DEV_PHONE || '+911234567890' : '';
+const DEV_OTP = IS_DEV_MODE ? process.env.EXPO_PUBLIC_DEV_OTP || '123456' : '';
 
 // Rate limiting constants
 const MAX_OTP_ATTEMPTS_PER_DAY = 10;
@@ -120,10 +120,10 @@ export async function sendOTP(phoneNumber: string): Promise<{
       };
     }
 
-    // Development fallback (always check, but don't skip Supabase)
+    // Development fallback. This must never be active in production builds.
     const isDevPhone = phoneNumber === DEV_PHONE_NUMBER;
-    
-    if (isDevPhone) {
+
+    if (IS_DEV_MODE && isDevPhone) {
       console.log('🔧 Development phone detected - using fallback OTP');
       await incrementAttempt();
       return {
@@ -175,8 +175,8 @@ export async function verifyOTP(
   error?: string;
 }> {
   try {
-    // Development fallback
-    if (verificationId === 'dev-verification-id') {
+    // Development fallback. This must never be active in production builds.
+    if (IS_DEV_MODE && verificationId === 'dev-verification-id') {
       if (otpCode === DEV_OTP) {
         console.log('🔧 Development OTP verified successfully');
         return {
@@ -186,7 +186,7 @@ export async function verifyOTP(
       } else {
         return {
           success: false,
-          error: `Invalid OTP. ${DEV_OTP ? 'Check your dev credentials.' : ''}`,
+          error: 'Invalid OTP.',
         };
       }
     }
@@ -264,9 +264,7 @@ export async function sendEmailOTP(email: string): Promise<{
 }> {
   try {
     // Development mode bypass
-    const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
-    
-    if (isDevMode) {
+    if (IS_DEV_MODE) {
       console.log('🔧 Development mode - email OTP bypass enabled');
       console.log('📧 Email OTP:', DEV_OTP);
       return {
@@ -317,9 +315,7 @@ export async function verifyEmailOTP(
 }> {
   try {
     // Development mode bypass
-    const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
-    
-    if (isDevMode && verificationId.startsWith('dev-email-')) {
+    if (IS_DEV_MODE && verificationId.startsWith('dev-email-')) {
       if (otpCode === DEV_OTP || otpCode.replace(/^0+/, '') === DEV_OTP.replace(/^0+/, '')) {
         const email = verificationId.replace('dev-email-', '');
         console.log('🔧 Development email OTP verified successfully');
@@ -330,7 +326,7 @@ export async function verifyEmailOTP(
       } else {
         return {
           success: false,
-          error: `Invalid OTP. For testing, use: ${DEV_OTP}`,
+          error: 'Invalid OTP.',
         };
       }
     }
@@ -372,9 +368,7 @@ export async function sendPhoneOTP(phoneNumber: string): Promise<{
 }> {
   try {
     // Development mode bypass
-    const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
-    
-    if (isDevMode) {
+    if (IS_DEV_MODE) {
       console.log('🔧 Development mode - phone OTP bypass enabled');
       console.log('📱 Phone OTP:', DEV_OTP);
       return {
@@ -408,9 +402,7 @@ export async function verifyPhoneOTP(
 }> {
   try {
     // Development mode bypass
-    const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
-    
-    if (isDevMode && verificationId.startsWith('dev-phone-')) {
+    if (IS_DEV_MODE && verificationId.startsWith('dev-phone-')) {
       if (otpCode === DEV_OTP) {
         const phoneNumber = verificationId.replace('dev-phone-', '');
         console.log('🔧 Development phone OTP verified successfully');
@@ -421,7 +413,7 @@ export async function verifyPhoneOTP(
       } else {
         return {
           success: false,
-          error: `Invalid OTP. For testing, use: ${DEV_OTP}`,
+          error: 'Invalid OTP.',
         };
       }
     }
