@@ -12,7 +12,6 @@
         "EXPO_PUBLIC_PILOT_CREDIT_NAME": "C-Pay pilot credits",
         "EXPO_PUBLIC_PILOT_CREDIT_UNIT": "credits",
         "EXPO_PUBLIC_PILOT_CREDIT_SYMBOL": "Cr",
-        "EXPO_PUBLIC_PILOT_ACCESS_CODE": "",
         "EXPO_PUBLIC_DEV_MODE": "true",
         "EXPO_PUBLIC_DEV_PHONE": "+911234567890",
         "EXPO_PUBLIC_DEV_OTP": "123456"
@@ -31,7 +30,7 @@
         "EXPO_PUBLIC_STELLAR_NETWORK": "testnet",
         "EXPO_PUBLIC_STELLAR_HORIZON_URL": "https://horizon-testnet.stellar.org",
         "EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
-        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "",
+        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "https://c-pay-mp8i.onrender.com",
         "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
         "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
         "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet",
@@ -39,16 +38,17 @@
         "EXPO_PUBLIC_PILOT_CREDIT_NAME": "C-Pay pilot credits",
         "EXPO_PUBLIC_PILOT_CREDIT_UNIT": "credits",
         "EXPO_PUBLIC_PILOT_CREDIT_SYMBOL": "Cr",
-        "EXPO_PUBLIC_PILOT_ACCESS_CODE": "",
         "EXPO_PUBLIC_DEV_MODE": "true",
         "EXPO_PUBLIC_DEV_PHONE": "+911234567890",
         "EXPO_PUBLIC_DEV_OTP": "123456"
       }
     },
     "production": {
+      "distribution": "internal",
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       },
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096",
@@ -57,7 +57,7 @@
         "EXPO_PUBLIC_STELLAR_NETWORK": "testnet",
         "EXPO_PUBLIC_STELLAR_HORIZON_URL": "https://horizon-testnet.stellar.org",
         "EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE": "Test SDF Network ; September 2015",
-        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "",
+        "EXPO_PUBLIC_STELLAR_RELAYER_URL": "https://c-pay-mp8i.onrender.com",
         "EXPO_PUBLIC_CPINR_ASSET_CODE": "CPINR",
         "EXPO_PUBLIC_CPINR_ASSET_ISSUER": "GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ",
         "EXPO_PUBLIC_STELLAR_EXPLORER_URL": "https://stellar.expert/explorer/testnet",
@@ -65,7 +65,6 @@
         "EXPO_PUBLIC_PILOT_CREDIT_NAME": "C-Pay pilot credits",
         "EXPO_PUBLIC_PILOT_CREDIT_UNIT": "credits",
         "EXPO_PUBLIC_PILOT_CREDIT_SYMBOL": "Cr",
-        "EXPO_PUBLIC_PILOT_ACCESS_CODE": "",
         "EXPO_PUBLIC_DEV_MODE": "false"
       }
     }
