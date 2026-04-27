@@ -6,6 +6,26 @@ import { clearSessionPin } from './wallet';
 const MAX_OTP_ATTEMPTS_PER_DAY = 10;
 const OTP_RATE_LIMIT_KEY = 'otp_rate_limit';
 
+function getRetryHours(resetTime: Date): number {
+  return Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / (1000 * 60 * 60)));
+}
+
+function isRateLimitMessage(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+
+  return /rate|limit|too many|security purposes|wait|requested/i.test(message);
+}
+
+function getSupabaseEmailSendError(email: string, message?: string): string {
+  if (isRateLimitMessage(message)) {
+    return `Supabase has temporarily limited verification emails for ${email}. This is not a full app-system block; it is an email-provider limit for this address/project. Please wait before requesting another code.`;
+  }
+
+  return message || 'Failed to send email OTP';
+}
+
 interface OTPRateLimit {
   attempts: number;
   lastAttempt: string; // ISO date string
@@ -107,7 +127,7 @@ export async function sendOTP(phoneNumber: string): Promise<{
     
     if (!rateLimitCheck.allowed) {
       const resetTime = rateLimitCheck.resetTime!;
-      const hours = Math.ceil((resetTime.getTime() - Date.now()) / (1000 * 60 * 60));
+      const hours = getRetryHours(resetTime);
       return {
         success: false,
         error: `Too many OTP requests. Please try again in ${hours} hour${hours > 1 ? 's' : ''}.`,
@@ -162,10 +182,10 @@ export async function sendLoginEmailOTP(email: string): Promise<{
 
     if (!rateLimitCheck.allowed) {
       const resetTime = rateLimitCheck.resetTime!;
-      const hours = Math.ceil((resetTime.getTime() - Date.now()) / (1000 * 60 * 60));
+      const hours = getRetryHours(resetTime);
       return {
         success: false,
-        error: `Too many verification code requests. Please try again in ${hours} hour${hours > 1 ? 's' : ''}.`,
+        error: `This device reached today's verification-code request limit across all email addresses. Try again in ${hours} hour${hours > 1 ? 's' : ''}.`,
         remainingAttempts: 0,
         resetTime,
       };
@@ -181,7 +201,7 @@ export async function sendLoginEmailOTP(email: string): Promise<{
     if (error) {
       return {
         success: false,
-        error: error.message,
+        error: getSupabaseEmailSendError(email, error.message),
         remainingAttempts: rateLimitCheck.remainingAttempts,
       };
     }

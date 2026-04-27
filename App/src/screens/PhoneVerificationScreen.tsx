@@ -178,13 +178,16 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
       // The UI transition to OTP input stage is sufficient feedback
     } else {
       if (result.resetTime) {
-        const hours = Math.ceil((result.resetTime.getTime() - Date.now()) / (1000 * 60 * 60));
         AlertManager.alert(
-          'Rate Limit Exceeded',
-          `You've reached the maximum verification code requests for today. Try again in ${hours} hour${hours > 1 ? 's' : ''}.`
+          'Device Limit Reached',
+          result.error || "This device reached today's verification-code request limit across all email addresses."
         );
       } else {
-        AlertManager.alert('Error', result.error || 'Failed to send verification code');
+        const isRateLimitError = /rate|limit|too many|security purposes|wait|requested/i.test(result.error || '');
+        AlertManager.alert(
+          isRateLimitError ? 'Email Limit Reached' : 'Error',
+          result.error || 'Failed to send verification code'
+        );
       }
       if (result.remainingAttempts !== undefined) {
         setRemainingAttempts(result.remainingAttempts);
@@ -302,8 +305,8 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
                 />
                 <Text style={styles.rateLimitText}>
                   {remainingAttempts === 0
-                    ? 'Daily verification limit reached'
-                    : `${remainingAttempts} verification request${remainingAttempts > 1 ? 's' : ''} remaining today`}
+                    ? 'Daily verification limit reached on this device'
+                    : `${remainingAttempts} verification request${remainingAttempts > 1 ? 's' : ''} remaining today on this device`}
                 </Text>
               </View>
             )}
