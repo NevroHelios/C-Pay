@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
     wallet_address TEXT UNIQUE NOT NULL,
     cpay_id TEXT UNIQUE,
+    email TEXT UNIQUE,
     phone_number TEXT UNIQUE,
     biometric_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     profile_photo_url TEXT,
@@ -114,6 +115,7 @@ CREATE TABLE IF NOT EXISTS relayer_idempotency_keys (
 -- the table already exists from an older local setup.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
@@ -140,6 +142,7 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recipient_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_users_auth_user_id ON users(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_cpay_id ON users(cpay_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_wallet_address ON merchants(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_merchants_auth_user_id ON merchants(auth_user_id);
@@ -164,6 +167,21 @@ FROM auth.users au
 WHERE u.auth_user_id IS NULL
   AND u.phone_number IS NOT NULL
   AND au.phone = u.phone_number;
+
+-- Email OTP auth stores verified addresses in auth.users.email.
+UPDATE users u
+SET auth_user_id = au.id
+FROM auth.users au
+WHERE u.auth_user_id IS NULL
+  AND u.email IS NOT NULL
+  AND au.email = u.email;
+
+UPDATE users u
+SET email = au.email
+FROM auth.users au
+WHERE u.email IS NULL
+  AND u.auth_user_id = au.id
+  AND au.email IS NOT NULL;
 
 UPDATE merchants m
 SET auth_user_id = u.auth_user_id
@@ -418,3 +436,54 @@ DROP TRIGGER IF EXISTS update_merchant_qr_codes_updated_at ON merchant_qr_codes;
 CREATE TRIGGER update_merchant_qr_codes_updated_at
 BEFORE UPDATE ON merchant_qr_codes
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE FUNCTION refresh_merchant_totals(p_merchant_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  IF p_merchant_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  UPDATE merchants m
+  SET
+    total_transactions = COALESCE((
+      SELECT COUNT(*)::INTEGER
+      FROM transactions t
+      WHERE t.merchant_id = p_merchant_id
+        AND t.transaction_type = 'merchant'
+        AND t.status = 'success'
+    ), 0),
+    total_revenue = COALESCE((
+      SELECT SUM(t.amount)
+      FROM transactions t
+      WHERE t.merchant_id = p_merchant_id
+        AND t.transaction_type = 'merchant'
+        AND t.status = 'success'
+    ), 0),
+    updated_at = NOW()
+  WHERE m.id = p_merchant_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION update_merchant_totals_from_transaction()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM refresh_merchant_totals(OLD.merchant_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM refresh_merchant_totals(NEW.merchant_id);
+
+  IF TG_OP = 'UPDATE' AND OLD.merchant_id IS DISTINCT FROM NEW.merchant_id THEN
+    PERFORM refresh_merchant_totals(OLD.merchant_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS update_merchant_totals_on_transactions ON transactions;
+CREATE TRIGGER update_merchant_totals_on_transactions
+AFTER INSERT OR UPDATE OR DELETE ON transactions
+FOR EACH ROW EXECUTE FUNCTION update_merchant_totals_from_transaction();

@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { requestAddMoney, getBalance, formatTimeRemaining } from '../services/blockchain';
+import { requestAddMoney, getBalance, getTimeUntilNextAddMoney, formatTimeRemaining } from '../services/blockchain';
 import { startTransactionPolling, stopTransactionPolling } from '../services/transactionMonitor';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { getTransactions, saveTransaction, Transaction, storageEvents } from '../services/storage';
@@ -29,7 +29,7 @@ interface HomeScreenProps {
   navigation: any;
 }
 
-type AddMoneyPhase = 'idle' | 'confirm' | 'authenticating' | 'processing' | 'success' | 'error';
+type AddMoneyPhase = 'idle' | 'checking' | 'confirm' | 'authenticating' | 'processing' | 'success' | 'cooldown' | 'error';
 
 const ADD_MONEY_DISPLAY_AMOUNT = '100';
 
@@ -46,6 +46,37 @@ type AddMoneyError = Error & {
   retryAfterSeconds?: number;
 };
 
+const getNormalizedRetryAfterSeconds = (value: unknown): number => {
+  const seconds = Number(value || 0);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 0;
+};
+
+const isAddMoneyCooldownError = (error: Partial<AddMoneyError>, message: string): boolean => {
+  const code = error.code || '';
+  const lowerMessage = message.toLowerCase();
+  return code === 'ADD_MONEY_COOLDOWN' || error.status === 429 || lowerMessage.includes('cooling down');
+};
+
+const getRetryAfterSecondsFromError = (error: unknown): number => {
+  const addMoneyError = error as Partial<AddMoneyError>;
+  const message = typeof addMoneyError.message === 'string' ? addMoneyError.message : '';
+  const retryAfterSeconds = getNormalizedRetryAfterSeconds(addMoneyError.retryAfterSeconds);
+
+  if (retryAfterSeconds > 0) {
+    return retryAfterSeconds;
+  }
+
+  return isAddMoneyCooldownError(addMoneyError, message) ? 24 * 60 * 60 : 0;
+};
+
+const getAddMoneyCooldownMessage = (retryAfterSeconds: number): string => {
+  if (retryAfterSeconds > 0) {
+    return `You can claim pilot credits again in ${formatTimeRemaining(retryAfterSeconds)}.`;
+  }
+
+  return 'Pilot credits are available now. You can claim again.';
+};
+
 const getAddMoneyErrorMessage = (error: unknown): string => {
   const addMoneyError = error as Partial<AddMoneyError>;
   const message = typeof addMoneyError.message === 'string'
@@ -53,11 +84,11 @@ const getAddMoneyErrorMessage = (error: unknown): string => {
     : 'Failed to claim pilot credits';
   const lowerMessage = message.toLowerCase();
   const code = addMoneyError.code || '';
-  const retryAfterSeconds = Number(addMoneyError.retryAfterSeconds || 0);
+  const retryAfterSeconds = getNormalizedRetryAfterSeconds(addMoneyError.retryAfterSeconds);
 
-  if (code === 'ADD_MONEY_COOLDOWN' || addMoneyError.status === 429 || lowerMessage.includes('cooling down')) {
-    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-      return `Please wait ${formatTimeRemaining(retryAfterSeconds)} before claiming pilot credits again.`;
+  if (isAddMoneyCooldownError(addMoneyError, message)) {
+    if (retryAfterSeconds > 0) {
+      return getAddMoneyCooldownMessage(retryAfterSeconds);
     }
 
     return 'Please wait 24 hours between pilot credit claims.';
@@ -92,6 +123,8 @@ const getAddMoneyErrorMessage = (error: unknown): string => {
 
 const getAddMoneyTitle = (phase: AddMoneyPhase): string => {
   switch (phase) {
+    case 'checking':
+      return 'Checking Claim';
     case 'confirm':
       return 'Claim Pilot Credits';
     case 'authenticating':
@@ -100,6 +133,8 @@ const getAddMoneyTitle = (phase: AddMoneyPhase): string => {
       return 'Claiming Credits';
     case 'success':
       return 'Credits Added';
+    case 'cooldown':
+      return 'Next Claim Available';
     case 'error':
       return 'Credit Claim Failed';
     default:
@@ -118,9 +153,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [addMoneyPhase, setAddMoneyPhase] = useState<AddMoneyPhase>('idle');
   const [addMoneyMessage, setAddMoneyMessage] = useState('');
   const [addMoneyTxHash, setAddMoneyTxHash] = useState('');
+  const [addMoneyRetryAfterSeconds, setAddMoneyRetryAfterSeconds] = useState(0);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
-  const isAddMoneyBusy = ['authenticating', 'processing'].includes(addMoneyPhase);
+  const isAddMoneyBusy = ['checking', 'authenticating', 'processing'].includes(addMoneyPhase);
+  const visibleAddMoneyMessage = addMoneyPhase === 'cooldown'
+    ? getAddMoneyCooldownMessage(addMoneyRetryAfterSeconds)
+    : addMoneyMessage;
+
+  useEffect(() => {
+    if (addMoneyPhase !== 'cooldown' || addMoneyRetryAfterSeconds <= 0) {
+      return;
+    }
+
+    const countdown = setInterval(() => {
+      setAddMoneyRetryAfterSeconds((seconds) => Math.max(seconds - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(countdown);
+  }, [addMoneyPhase, addMoneyRetryAfterSeconds]);
 
   useEffect(() => {
     loadWalletData();
@@ -258,9 +309,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     navigation.navigate('SendMoney');
   };
 
-  const handleAddMoney = () => {
-    if (!walletAddress) return;
+  const handleAddMoney = async () => {
+    if (!walletAddress || addMoneyPhase !== 'idle') return;
+
     setAddMoneyTxHash('');
+    setAddMoneyRetryAfterSeconds(0);
+    setAddMoneyMessage('Checking when your next pilot credit claim is available...');
+    setAddMoneyPhase('checking');
+
+    const retryAfterSeconds = await getTimeUntilNextAddMoney(walletAddress);
+
+    if (retryAfterSeconds > 0) {
+      setAddMoneyRetryAfterSeconds(retryAfterSeconds);
+      setAddMoneyMessage('');
+      setAddMoneyPhase('cooldown');
+      return;
+    }
+
     setAddMoneyMessage(`Claim ${formatMoneyAmount(Number(ADD_MONEY_DISPLAY_AMOUNT))} for your pilot wallet. One claim is available every 24 hours.`);
     setAddMoneyPhase('confirm');
   };
@@ -270,6 +335,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setAddMoneyPhase('idle');
       setAddMoneyMessage('');
       setAddMoneyTxHash('');
+      setAddMoneyRetryAfterSeconds(0);
     }
   };
 
@@ -278,6 +344,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
     try {
       setAddMoneyTxHash('');
+      setAddMoneyRetryAfterSeconds(0);
       setAddMoneyMessage('Confirm with PIN or biometrics to continue...');
       setAddMoneyPhase('authenticating');
       await waitForUiPaint();
@@ -328,6 +395,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     } catch (error: any) {
       console.error('Pilot credits error:', error);
 
+      const retryAfterSeconds = getRetryAfterSecondsFromError(error);
+      if (retryAfterSeconds > 0) {
+        setAddMoneyRetryAfterSeconds(retryAfterSeconds);
+        setAddMoneyMessage('');
+        setAddMoneyPhase('cooldown');
+        return;
+      }
+
+      setAddMoneyRetryAfterSeconds(0);
       setAddMoneyMessage(getAddMoneyErrorMessage(error));
       setAddMoneyPhase('error');
     }
@@ -499,6 +575,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               style={[
                 styles.addMoneyIcon,
                 addMoneyPhase === 'success' && styles.addMoneyIconSuccess,
+                addMoneyPhase === 'cooldown' && styles.addMoneyIconCooldown,
                 addMoneyPhase === 'error' && styles.addMoneyIconError,
               ]}
             >
@@ -509,6 +586,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   name={
                     addMoneyPhase === 'success'
                       ? 'checkmark-circle'
+                      : addMoneyPhase === 'cooldown'
+                        ? 'time-outline'
                       : addMoneyPhase === 'error'
                         ? 'alert-circle'
                         : 'add-circle'
@@ -517,6 +596,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   color={
                     addMoneyPhase === 'success'
                       ? COLORS.success
+                      : addMoneyPhase === 'cooldown'
+                        ? COLORS.warning
                       : addMoneyPhase === 'error'
                         ? COLORS.error
                         : COLORS.primary
@@ -527,7 +608,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
             <Text style={styles.addMoneyTitle}>{getAddMoneyTitle(addMoneyPhase)}</Text>
 
-            <Text style={styles.addMoneyMessage}>{addMoneyMessage}</Text>
+            <Text style={styles.addMoneyMessage}>{visibleAddMoneyMessage}</Text>
 
             {!!addMoneyTxHash && (
               <Text style={styles.addMoneyHash} numberOfLines={1}>
@@ -569,6 +650,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 >
                   <Text style={styles.addMoneyPrimaryText}>Done</Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {addMoneyPhase === 'cooldown' && (
+              <View style={styles.addMoneyButtonRow}>
+                <TouchableOpacity
+                  style={[styles.addMoneyButton, styles.addMoneySecondaryButton]}
+                  onPress={closeAddMoneyStatus}
+                >
+                  <Text style={styles.addMoneySecondaryText}>Close</Text>
+                </TouchableOpacity>
+                {addMoneyRetryAfterSeconds <= 0 && (
+                  <TouchableOpacity
+                    style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
+                    onPress={startAddMoney}
+                  >
+                    <Text style={styles.addMoneyPrimaryText}>Claim Now</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -782,6 +882,9 @@ const styles = StyleSheet.create({
   },
   addMoneyIconSuccess: {
     backgroundColor: COLORS.successBg,
+  },
+  addMoneyIconCooldown: {
+    backgroundColor: COLORS.warningBg,
   },
   addMoneyIconError: {
     backgroundColor: COLORS.errorBg,

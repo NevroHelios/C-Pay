@@ -20,8 +20,10 @@ import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentMerchantCPayId } from '../utils/cpayId';
 import { generatePaymentQRWithId } from '../utils/qrCode';
+import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
+const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
 
 interface MerchantGlobalQRScreenProps {
   navigation: any;
@@ -106,8 +108,8 @@ export const MerchantGlobalQRScreen: React.FC<MerchantGlobalQRScreenProps> = ({
         const filename = `${businessName.replace(/\s+/g, '_')}_QR.png`;
         
         // Request permission to save to media library
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status !== 'granted') {
+        const hasPermission = await requestPhotoSavePermission();
+        if (!hasPermission) {
           AlertManager.alert('Permission Required', 'Please grant permission to save images to your device');
           return;
         }
@@ -118,7 +120,7 @@ export const MerchantGlobalQRScreen: React.FC<MerchantGlobalQRScreenProps> = ({
       }
     } catch (error) {
       console.error('Error downloading QR:', error);
-      AlertManager.alert('Error', 'Failed to download QR code');
+      AlertManager.alert('Error', getMediaLibraryDownloadErrorMessage(error));
     }
   };
 
@@ -170,9 +172,9 @@ export const MerchantGlobalQRScreen: React.FC<MerchantGlobalQRScreenProps> = ({
           <View style={styles.qrCard}>
             <View style={styles.infoCard}>
               {logoUrl ? (
-                <Image source={{ uri: logoUrl }} style={styles.businessLogo} />
+                <Image source={{ uri: logoUrl }} style={styles.businessLogo} onError={() => setLogoUrl(null)} />
               ) : (
-                <Image source={require('../../assets/default-merchant-image-cryptopay.png')} style={styles.businessLogo} />
+                <Image source={DEFAULT_MERCHANT_LOGO} style={styles.businessLogo} />
               )}
               <Text style={styles.businessName}>{businessName}</Text>
               <Text style={styles.subtitle}>

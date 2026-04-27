@@ -114,6 +114,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
   const completeProfileSetup = async (
     name: string,
     phoneToSave: string | null,
+    emailToSave: string | null,
     cpayId: string,
     photoUri: string | null
   ): Promise<void> => {
@@ -136,6 +137,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
           auth_user_id: authUserId,
           wallet_address: walletAddress,
           display_name: name,
+          email: emailToSave,
           phone_number: phoneToSave,
           cpay_id: cpayId,
           profile_photo_url: photoUrl,
@@ -169,8 +171,9 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       const devPhoneNumber = process.env.EXPO_PUBLIC_DEV_PHONE || '+911234567890';
       const isDevPhone = isDevMode && phoneNumber === devPhoneNumber;
       
-      // Only save phone number if it's not the development number
-      const phoneToSave = isDevPhone ? null : phoneNumber;
+      // Email-only verification can continue without a phone number.
+      const phoneToSave = !phoneNumber || isDevPhone ? null : phoneNumber;
+      const emailToSave = await AsyncStorage.getItem('user_email');
       
       // Generate a public C-Pay ID for display and receiving payments.
       const cpayId = generateCPayId(phoneNumber, walletAddress);
@@ -186,15 +189,14 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
         localWrites.push(AsyncStorage.setItem('profile_photo', profilePhoto));
       }
 
-      // Only save phone locally if it's not dev number
-      if (!isDevPhone) {
+      if (phoneToSave) {
         localWrites.push(AsyncStorage.setItem('phone_number', phoneNumber));
       }
 
       await Promise.all(localWrites);
 
       // Complete profile upload/cloud save here so the next screen opens cleanly.
-      await completeProfileSetup(trimmedName, phoneToSave, cpayId, profilePhoto);
+      await completeProfileSetup(trimmedName, phoneToSave, emailToSave, cpayId, profilePhoto);
 
       // Biometric setup is optional and handled on the dedicated next screen.
       navigation.replace('BiometricSetup');

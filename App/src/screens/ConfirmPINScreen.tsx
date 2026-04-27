@@ -32,11 +32,13 @@ const saveInitialUserRecord = (
 ) => {
   void (async () => {
     try {
+      const verifiedEmail = await AsyncStorage.getItem('user_email');
       const { error: dbError } = await supabase
         .from('users')
         .upsert(
           {
             wallet_address: walletAddress,
+            email: verifiedEmail || null,
             phone_number: phoneNumber || null,
             cpay_id: cpayId,
             biometric_enabled: false,

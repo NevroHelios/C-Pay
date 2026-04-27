@@ -217,20 +217,22 @@ export async function getTimeUntilNextAddMoney(accountId: string): Promise<numbe
 }
 
 export function formatTimeRemaining(seconds: number): string {
-  if (seconds <= 0) return 'Available now';
+  const totalSeconds = Math.max(0, Math.ceil(seconds));
+  if (totalSeconds <= 0) return 'Available now';
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${hours}h ${minutes}m`;
+    return `${hours}h ${minutes}m ${remainingSeconds}s`;
   }
 
   if (minutes > 0) {
-    return `${minutes}m`;
+    return `${minutes}m ${remainingSeconds}s`;
   }
 
-  return 'Less than 1 minute';
+  return `${remainingSeconds}s`;
 }
 
 export async function requestAddMoney(wallet: StellarWallet): Promise<string> {

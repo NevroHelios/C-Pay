@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAsMerchant, uploadMerchantLogo } from '../services/merchant';
-import { sendEmailOTP, verifyEmailOTP, getDevOTP } from '../services/auth';
+import { sendEmailOTP, verifyEmailOTP } from '../services/auth';
 import { PINInput } from '../components/PINInput';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,15 @@ import { AlertManager } from '../utils/alert';
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MERCHANT_EMAIL_OTP_LENGTH = 8;
+const MERCHANT_PHONE_MIN_DIGITS = 10;
+const MERCHANT_PHONE_MAX_DIGITS = 15;
+
+const normalizeMerchantPhoneInput = (value: string): string => {
+  const hasLeadingPlus = value.trimStart().startsWith('+');
+  const digits = value.replace(/\D/g, '').slice(0, MERCHANT_PHONE_MAX_DIGITS);
+
+  return `${hasLeadingPlus ? '+' : ''}${digits}`;
+};
 
 interface MerchantRegistrationScreenProps {
   navigation: any;
@@ -66,11 +75,6 @@ export const MerchantRegistrationScreen: React.FC<
   const [showEmailOTPModal, setShowEmailOTPModal] = useState(false);
   const [emailOTPLoading, setEmailOTPLoading] = useState(false);
   
-  // Dev mode hint
-  const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
-  const devOTP = getDevOTP();
-  const emailDevOTP = devOTP.padStart(MERCHANT_EMAIL_OTP_LENGTH, '0');
-
   const handleEmailChange = (text: string) => {
     setEmail(text);
     if (emailVerified) {
@@ -86,6 +90,10 @@ export const MerchantRegistrationScreen: React.FC<
     if (emailOTPError) {
       setEmailOTPError('');
     }
+  };
+
+  const handlePhoneNumberChange = (value: string) => {
+    setPhoneNumber(normalizeMerchantPhoneInput(value));
   };
 
   const handlePickLogo = async () => {
@@ -203,11 +211,11 @@ export const MerchantRegistrationScreen: React.FC<
       return;
     }
 
-    const normalizedPhone = phoneNumber.trim();
+    const normalizedPhone = normalizeMerchantPhoneInput(phoneNumber);
     const phoneDigits = normalizedPhone.replace(/\D/g, '');
 
-    if (phoneDigits.length < 10) {
-      AlertManager.alert('Error', 'Please enter a valid contact phone number');
+    if (phoneDigits.length < MERCHANT_PHONE_MIN_DIGITS || phoneDigits.length > MERCHANT_PHONE_MAX_DIGITS) {
+      AlertManager.alert('Error', `Please enter a valid contact phone number (${MERCHANT_PHONE_MIN_DIGITS}-${MERCHANT_PHONE_MAX_DIGITS} digits)`);
       return;
     }
 
@@ -243,7 +251,12 @@ export const MerchantRegistrationScreen: React.FC<
       let logoUrl: string | undefined;
       if (logoUri) {
         AlertManager.alert('Uploading', 'Uploading your business logo...');
-        logoUrl = await uploadMerchantLogo(logoUri, businessName) || undefined;
+        const uploadedLogoUrl = await uploadMerchantLogo(logoUri, businessName);
+        if (!uploadedLogoUrl) {
+          AlertManager.alert('Logo Upload Failed', 'Your logo could not be uploaded. Please check the storage policy and try again.');
+          return;
+        }
+        logoUrl = uploadedLogoUrl;
       } else {
         // Use default merchant logo - construct the URL from assets
         // When building the app, this will be bundled with the app
@@ -393,9 +406,6 @@ export const MerchantRegistrationScreen: React.FC<
                 </TouchableOpacity>
               )}
             </View>
-            {isDevMode && !emailVerified && (
-              <Text style={styles.devHint}>Dev Mode: Use OTP {emailDevOTP}</Text>
-            )}
           </View>
 
           {/* Phone Number */}
@@ -405,10 +415,11 @@ export const MerchantRegistrationScreen: React.FC<
               <TextInput
                 style={[styles.input, styles.inputWithVerify]}
                 value={phoneNumber}
-                onChangeText={setPhoneNumber}
+                onChangeText={handlePhoneNumberChange}
                 placeholder="+1234567890"
                 placeholderTextColor={COLORS.textSecondary}
                 keyboardType="phone-pad"
+                maxLength={MERCHANT_PHONE_MAX_DIGITS + 1}
               />
             </View>
           </View>
@@ -575,11 +586,8 @@ export const MerchantRegistrationScreen: React.FC<
               secure={false}
               accessibilityLabel="Email verification code"
               textContentType="oneTimeCode"
-              autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+              autoComplete="one-time-code"
             />
-            {isDevMode && (
-              <Text style={styles.devHintModal}>Dev Mode: Use {emailDevOTP}</Text>
-            )}
             {emailOTPError ? (
               <View style={styles.otpErrorRow}>
                 <Ionicons name="alert-circle-outline" size={16} color={COLORS.error} />
@@ -855,12 +863,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
-  devHint: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.warning,
-    marginTop: SPACING.xs,
-    fontWeight: '600',
-  },
   otpModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -932,15 +934,5 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-  },
-  devHintModal: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.warning,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-    fontWeight: '600',
-    backgroundColor: COLORS.warning + '20',
-    padding: SPACING.sm,
-    borderRadius: 8,
   },
 });

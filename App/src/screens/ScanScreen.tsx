@@ -117,17 +117,33 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => 
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        // For now, show a message that QR scanning from image requires additional setup
-        // In production, you'd use a library like jsQR to decode the QR from the image
-        AlertManager.alert(
-          'Gallery QR Scanning',
-          'This feature requires QR code detection from images. Please use camera to scan QR codes.',
-          [{ text: 'OK' }]
-        );
+        setScanned(true);
+        setLoading(true);
+
+        const qrResults = await Camera.scanFromURLAsync(result.assets[0].uri, ['qr']);
+        const qrData = qrResults.find((qr) => qr.data)?.data;
+
+        if (!qrData) {
+          setLoading(false);
+          AlertManager.alert(
+            'No QR Code Found',
+            'Please choose a clear image that contains a C-Pay QR code.',
+            [{ text: 'Try Again', onPress: () => setScanned(false) }]
+          );
+          return;
+        }
+
+        await handleBarCodeScanned({
+          type: qrResults[0]?.type || 'qr',
+          data: qrData,
+        });
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      AlertManager.alert('Error', 'Failed to pick image from gallery');
+      setLoading(false);
+      AlertManager.alert('Error', 'Failed to scan QR code from this image.', [
+        { text: 'Try Again', onPress: () => setScanned(false) },
+      ]);
     }
   };
 

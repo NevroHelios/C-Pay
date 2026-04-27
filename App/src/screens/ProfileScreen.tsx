@@ -29,6 +29,7 @@ import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constant
 import { Card, Button } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
+import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 import { clearBiometricBackup, clearSessionPin } from '../services/wallet';
 import { getExplorerUrl } from '../services/blockchain';
 import { generatePaymentQR } from '../utils/qrCode';
@@ -455,9 +456,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const handleDownloadQRCode = async () => {
     try {
       // Request media library permissions (write only, not read)
-      const { status } = await MediaLibrary.requestPermissionsAsync(false);
-      
-      if (status !== 'granted') {
+      const hasPermission = await requestPhotoSavePermission();
+
+      if (!hasPermission) {
         AlertManager.alert('Permission Required', 'Please allow access to save the QR code to your gallery.');
         return;
       }
@@ -473,14 +474,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error downloading QR code:', error);
-      AlertManager.alert('Error', 'Failed to save QR code');
+      AlertManager.alert('Error', getMediaLibraryDownloadErrorMessage(error));
     }
   };
 
   const handleSignOut = () => {
     AlertManager.alert(
       'Sign Out',
-      'Are you sure you want to sign out? You will need phone OTP and wallet unlock to access your account again.',
+      'Are you sure you want to sign out? You will need email verification and wallet unlock to access your account again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -490,6 +491,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             await AsyncStorage.removeItem('auth_token');
             await AsyncStorage.removeItem('phone_verified');
             await AsyncStorage.removeItem('phone_number');
+            await AsyncStorage.removeItem('email_verified');
+            await AsyncStorage.removeItem('user_email');
             clearSessionPin();
             
             AlertManager.alert('Signed Out', 'You have been signed out successfully.', [

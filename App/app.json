@@ -59,7 +59,10 @@
         {
           "photosPermission": "Allow C-Pay to save QR codes to your photos.",
           "savePhotosPermission": "Allow C-Pay to save QR codes to your photos.",
-          "isAccessMediaLocationEnabled": false
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo"
+          ]
         }
       ],
       "expo-font"

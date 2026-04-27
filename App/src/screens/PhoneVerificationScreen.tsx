@@ -14,9 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { sendOTP, verifyOTP, getDevPhoneNumber, getDevOTP, getRemainingAttempts } from '../services/auth';
+import { sendLoginEmailOTP, verifyLoginEmailOTP, getRemainingAttempts } from '../services/auth';
 import { hasWallet } from '../services/wallet';
-import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import {
@@ -29,13 +28,17 @@ import {
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = height < 700;
-const OTP_DIGITS = [0, 1, 2, 3, 4, 5];
-const OTP_BOX_GAP = isSmallDevice ? 7 : 9;
+const EMAIL_OTP_LENGTH = 8;
+const OTP_DIGITS = Array.from({ length: EMAIL_OTP_LENGTH }, (_, index) => index);
+const OTP_BOX_GAP = isSmallDevice ? 4 : 6;
 const OTP_CARD_HORIZONTAL_PADDING = isSmallDevice ? SPACING.sm : SPACING.md;
 const OTP_BOX_SIZE = Math.min(
-  isSmallDevice ? 44 : 50,
-  Math.floor((width - SPACING.lg * 2 - OTP_CARD_HORIZONTAL_PADDING * 2 - OTP_BOX_GAP * 5) / 6)
+  isSmallDevice ? 38 : 42,
+  Math.floor((width - SPACING.lg * 2 - OTP_CARD_HORIZONTAL_PADDING * 2 - OTP_BOX_GAP * (EMAIL_OTP_LENGTH - 1)) / EMAIL_OTP_LENGTH)
 );
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_VERIFIED_KEY = 'email_verified';
+const USER_EMAIL_KEY = 'user_email';
 
 interface PhoneVerificationScreenProps {
   navigation: any;
@@ -44,11 +47,11 @@ interface PhoneVerificationScreenProps {
 export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = ({
   navigation,
 }) => {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [emailAddress, setEmailAddress] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState('');
   const [pilotAccessCode, setPilotAccessCode] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [step, setStep] = useState<'email' | 'otp'>('email');
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
@@ -57,7 +60,6 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   const otpInputRef = useRef<TextInput>(null);
   const verifyingRef = useRef(false);
   const lastSubmittedOtpRef = useRef<string | null>(null);
-  const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
 
   useEffect(() => {
     loadRemainingAttempts();
@@ -89,13 +91,13 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   }, [step, timer]);
 
   useEffect(() => {
-    if (step === 'otp' && otp.length === 6 && !verifyingRef.current) {
+    if (step === 'otp' && otp.length === EMAIL_OTP_LENGTH && !verifyingRef.current) {
       handleVerifyOTP();
     }
   }, [otp, step]);
 
   const handleOtpChange = (value: string) => {
-    const nextOtp = value.replace(/\D/g, '').slice(0, 6);
+    const nextOtp = value.replace(/\D/g, '').slice(0, EMAIL_OTP_LENGTH);
     lastSubmittedOtpRef.current = null;
     setOtp(nextOtp);
   };
@@ -112,8 +114,10 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   };
 
   const handleSendOTP = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) {
-      AlertManager.alert('Error', 'Please enter a valid phone number');
+    const normalizedEmail = emailAddress.trim().toLowerCase();
+
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      AlertManager.alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -126,25 +130,9 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
     }
 
     setLoading(true);
+    setEmailAddress(normalizedEmail);
 
-    // Format phone number (add +91 if not present)
-    let formattedPhone = phoneNumber.trim();
-    if (!formattedPhone.startsWith('+')) {
-      formattedPhone = '+91' + formattedPhone;
-    }
-
-    // In dev mode, bypass OTP sending but move to OTP stage
-    if (isDevMode) {
-      setVerificationId('dev-bypass');
-      resetOtpEntry();
-      setStep('otp');
-      setTimer(30);
-      setCanResend(false);
-      setLoading(false);
-      return;
-    }
-
-    const result = await sendOTP(formattedPhone);
+    const result = await sendLoginEmailOTP(normalizedEmail);
 
     if (result.success && result.verificationId) {
       setVerificationId(result.verificationId);
@@ -162,10 +150,10 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
         const hours = Math.ceil((result.resetTime.getTime() - Date.now()) / (1000 * 60 * 60));
         AlertManager.alert(
           'Rate Limit Exceeded',
-          `You've reached the maximum OTP requests for today. Try again in ${hours} hour${hours > 1 ? 's' : ''}.`
+          `You've reached the maximum verification code requests for today. Try again in ${hours} hour${hours > 1 ? 's' : ''}.`
         );
       } else {
-        AlertManager.alert('Error', result.error || 'Failed to send OTP');
+        AlertManager.alert('Error', result.error || 'Failed to send verification code');
       }
       if (result.remainingAttempts !== undefined) {
         setRemainingAttempts(result.remainingAttempts);
@@ -187,8 +175,8 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
       return;
     }
 
-    if (!otpToVerify || otpToVerify.length !== 6) {
-      AlertManager.alert('Error', 'Please enter a valid 6-digit OTP');
+    if (!otpToVerify || otpToVerify.length !== EMAIL_OTP_LENGTH) {
+      AlertManager.alert('Error', `Please enter a valid ${EMAIL_OTP_LENGTH}-digit code`);
       return;
     }
 
@@ -196,100 +184,23 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
     lastSubmittedOtpRef.current = submissionKey;
     setLoading(true);
 
-    // In dev mode, bypass OTP verification
-    const devOTP = process.env.EXPO_PUBLIC_DEV_OTP || '123456';
-    const isDevVerification =
-      isDevMode &&
-      (verificationId === 'dev-bypass' || verificationId === 'dev-verification-id');
-    
-    let result;
-    if (isDevVerification && otpToVerify === devOTP) {
-      // Dev mode bypass - accept dev OTP with any phone number
-      let formattedPhone = phoneNumber.trim();
-      if (!formattedPhone.startsWith('+')) {
-        formattedPhone = '+91' + formattedPhone;
-      }
-      result = { success: true, phoneNumber: formattedPhone };
-    } else {
-      // Normal verification
-      result = await verifyOTP(verificationId, otpToVerify);
-    }
+    const result = await verifyLoginEmailOTP(verificationId, otpToVerify);
 
     if (result.success) {
-      const verifiedPhone = result.phoneNumber || phoneNumber;
-      
-      // Save phone number
-      await AsyncStorage.setItem('phone_number', verifiedPhone);
-      
+      const verifiedEmail = result.email || emailAddress.trim().toLowerCase();
+      await AsyncStorage.multiSet([
+        [EMAIL_VERIFIED_KEY, 'true'],
+        [USER_EMAIL_KEY, verifiedEmail],
+      ]);
+
       // Check if user already has a wallet (returning user after sign out)
       const walletExists = await hasWallet();
-      
+
       if (walletExists) {
-        // Returning user - verify phone matches stored wallet
-        const storedPhone = await AsyncStorage.getItem('phone_number');
-        const walletAddress = await AsyncStorage.getItem('wallet_address');
-        
-        if (!isDevVerification) {
-          if (storedPhone !== verifiedPhone) {
-            // Phone number doesn't match - this might be a different account
-            AlertManager.alert(
-              'Account Mismatch',
-              'This phone number is not associated with the wallet on this device. Please use the correct phone number or create a new wallet.',
-          [
-                {
-                  text: 'Try Again',
-                  onPress: () => {
-                    setStep('phone');
-                    resetOtpEntry();
-                    setPhoneNumber('');
-                  },
-                },
-              ]
-            );
-            lastSubmittedOtpRef.current = null;
-            setLoading(false);
-            verifyingRef.current = false;
-            return;
-          }
-          
-          // Verify with database that phone and wallet match
-          const { data: userData, error: dbError } = await supabase
-            .from('users')
-            .select('wallet_address, phone_number')
-            .eq('phone_number', verifiedPhone)
-            .single();
-          
-          if (dbError || !userData) {
-            console.log('No database record found, using local data');
-          } else if (userData.wallet_address !== walletAddress) {
-            AlertManager.alert(
-              'Account Mismatch',
-              'This phone number is associated with a different wallet. Please use the correct phone number.',
-              [
-                {
-                  text: 'Try Again',
-                  onPress: () => {
-                    setStep('phone');
-                    resetOtpEntry();
-                    setPhoneNumber('');
-                  },
-                },
-              ]
-            );
-            lastSubmittedOtpRef.current = null;
-            setLoading(false);
-            verifyingRef.current = false;
-            return;
-          }
-        } else {
-          // Dev mode - skip strict verification
-          console.log('Dev verification - skipping remote phone/wallet check');
-        }
-        
         navigation.replace('Login');
       } else {
         navigation.replace('CreatePIN', {
-          phoneNumber: verifiedPhone,
+          phoneNumber: '',
         });
       }
     } else {
@@ -303,7 +214,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
 
   const handleResendOTP = () => {
     resetOtpEntry();
-    setStep('phone');
+    setStep('email');
     setCanResend(false);
   };
 
@@ -322,20 +233,20 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.logo}>
-                <Ionicons name="phone-portrait-outline" size={isSmallDevice ? 30 : 38} color={COLORS.primary} />
+                <Ionicons name="mail-outline" size={isSmallDevice ? 30 : 38} color={COLORS.primary} />
               </View>
               <Text style={styles.title}>
-                {step === 'phone' ? 'Enter Phone Number' : 'Verify OTP'}
+                {step === 'email' ? 'Verify with Email' : 'Verify Email Code'}
               </Text>
               <Text style={styles.subtitle}>
-                {step === 'phone'
-                  ? "We'll send you a verification code"
-                  : `Code sent to ${phoneNumber}`}
+                {step === 'email'
+                  ? 'Enter your email address'
+                  : `Code sent to ${emailAddress}`}
               </Text>
             </View>
 
             {/* Rate Limit Indicator */}
-            {remainingAttempts <= 3 && step === 'phone' && (
+            {remainingAttempts <= 3 && step === 'email' && (
               <View style={styles.rateLimitBanner}>
                 <Ionicons
                   name={remainingAttempts === 0 ? 'alert-circle-outline' : 'speedometer-outline'}
@@ -344,24 +255,14 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
                 />
                 <Text style={styles.rateLimitText}>
                   {remainingAttempts === 0
-                    ? 'Daily OTP limit reached'
-                    : `${remainingAttempts} OTP request${remainingAttempts > 1 ? 's' : ''} remaining today`}
+                    ? 'Daily verification limit reached'
+                    : `${remainingAttempts} verification request${remainingAttempts > 1 ? 's' : ''} remaining today`}
                 </Text>
               </View>
             )}
 
-            {/* Development Hint */}
-            {isDevMode && (
-            <View style={styles.devHint}>
-              <Ionicons name="bulb-outline" size={16} color={COLORS.info} />
-              <Text style={styles.devHintText}>
-                Use {getDevPhoneNumber()} with OTP {getDevOTP()} for testing
-              </Text>
-            </View>
-            )}
-
         {/* Input Section */}
-        {step === 'phone' ? (
+        {step === 'email' ? (
           <View style={styles.inputSection}>
             <View style={styles.pilotNotice}>
               <Ionicons name="flask-outline" size={18} color={COLORS.info} />
@@ -383,15 +284,19 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
               />
             )}
 
-            <View style={styles.phoneInputContainer}>
-              <Text style={styles.countryCode}>+91</Text>
+            <View style={styles.emailInputContainer}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.emailInputIcon} />
               <TextInput
-                style={styles.phoneInput}
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="Enter 10-digit mobile number"
-                keyboardType="phone-pad"
-                maxLength={10}
+                style={styles.emailInput}
+                value={emailAddress}
+                onChangeText={setEmailAddress}
+                placeholder="Enter email address"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                maxLength={254}
                 autoFocus
               />
             </View>
@@ -404,7 +309,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
               {loading ? (
                 <ActivityIndicator color={COLORS.card} />
               ) : (
-                <Text style={styles.buttonText}>Send OTP</Text>
+                <Text style={styles.buttonText}>Send Email Code</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -417,7 +322,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
               <View style={styles.otpVisualLayer} pointerEvents="none">
                 <View style={styles.otpContainer}>
                   {OTP_DIGITS.map((index) => {
-                    const isActive = !loading && otpFocused && (otp.length === index || (otp.length === 6 && index === 5));
+                    const isActive = !loading && otpFocused && (otp.length === index || (otp.length === EMAIL_OTP_LENGTH && index === EMAIL_OTP_LENGTH - 1));
                     const isFilled = Boolean(otp[index]);
 
                     return (
@@ -446,9 +351,9 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
                     {loading
                       ? 'Verifying code...'
                       : otp.length === 0
-                        ? 'Waiting for 6-digit code'
-                        : otp.length < 6
-                          ? `${6 - otp.length} digit${6 - otp.length === 1 ? '' : 's'} remaining`
+                        ? `Waiting for ${EMAIL_OTP_LENGTH}-digit code`
+                        : otp.length < EMAIL_OTP_LENGTH
+                          ? `${EMAIL_OTP_LENGTH - otp.length} digit${EMAIL_OTP_LENGTH - otp.length === 1 ? '' : 's'} remaining`
                           : 'Code ready'}
                   </Text>
                   {loading && (
@@ -465,49 +370,39 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
                 onFocus={() => setOtpFocused(true)}
                 onBlur={() => setOtpFocused(false)}
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={EMAIL_OTP_LENGTH}
                 autoFocus
                 editable={!loading}
                 caretHidden
                 showSoftInputOnFocus
                 selectionColor="transparent"
                 textContentType="oneTimeCode"
-                autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+                autoComplete="one-time-code"
                 importantForAutofill="yes"
                 accessibilityLabel="Verification code"
               />
             </View>
 
-            {/* Dev Mode Hint */}
-            {isDevMode && (
-              <View style={styles.devHint}>
-                <Ionicons name="construct-outline" size={16} color={COLORS.info} />
-                <Text style={styles.devHintText}>
-                  Dev mode OTP: {process.env.EXPO_PUBLIC_DEV_OTP || '123456'}
-                </Text>
-              </View>
-            )}
-
             {/* Timer and Resend */}
             <View style={styles.timerContainer}>
               {timer > 0 ? (
-                <Text style={styles.timerText}>Resend OTP in {timer}s</Text>
+                <Text style={styles.timerText}>Resend code in {timer}s</Text>
               ) : (
                 <TouchableOpacity onPress={handleResendOTP}>
-                  <Text style={styles.resendText}>Resend OTP</Text>
+                  <Text style={styles.resendText}>Resend code</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             <TouchableOpacity
-              style={[styles.button, (loading || otp.length !== 6) && styles.buttonDisabled]}
+              style={[styles.button, (loading || otp.length !== EMAIL_OTP_LENGTH) && styles.buttonDisabled]}
               onPress={handleVerifyOTP}
-              disabled={loading || otp.length !== 6}
+              disabled={loading || otp.length !== EMAIL_OTP_LENGTH}
             >
               {loading ? (
                 <ActivityIndicator color={COLORS.card} />
               ) : (
-                <Text style={styles.buttonText}>Verify OTP</Text>
+                <Text style={styles.buttonText}>Verify Code</Text>
               )}
             </TouchableOpacity>
 
@@ -515,11 +410,11 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => {
-                setStep('phone');
+                setStep('email');
                 resetOtpEntry();
               }}
             >
-              <Text style={styles.backButtonText}>Change Phone Number</Text>
+              <Text style={styles.backButtonText}>Change Email</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -528,7 +423,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
             <View style={styles.securityNotice}>
               <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.textSecondary} style={styles.securityIcon} />
               <Text style={styles.securityText}>
-                Your phone number is verified to ensure account security
+                Your email code confirms secure account access
               </Text>
             </View>
           </View>
@@ -593,40 +488,6 @@ const styles = StyleSheet.create({
     color: COLORS.warning,
     textAlign: 'center',
   },
-  devHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.infoBg,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.info,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.lg,
-  },
-  devHintText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.info,
-    textAlign: 'center',
-  },
-  devBanner: {
-    backgroundColor: '#FFC107',
-    padding: SPACING.md,
-    borderRadius: 12,
-    marginBottom: SPACING.lg,
-    alignItems: 'center',
-  },
-  devText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  devSubtext: {
-    fontSize: FONT_SIZES.sm,
-    color: '#000',
-    marginTop: SPACING.xs,
-  },
   inputSection: {
     marginBottom: SPACING.xl,
   },
@@ -665,7 +526,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     marginBottom: SPACING.md,
   },
-  phoneInputContainer: {
+  emailInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
@@ -676,18 +537,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
   },
-  countryCode: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-    paddingRight: SPACING.sm,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.border,
+  emailInputIcon: {
     marginRight: SPACING.sm,
   },
-  phoneInput: {
+  emailInput: {
     flex: 1,
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.md,
     color: COLORS.text,
     paddingVertical: SPACING.md,
   },

@@ -7,7 +7,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
-  Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,6 +26,7 @@ import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash } from '../services/blockchain';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
+const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
 
 // Helper component to display sender info with C-Pay ID
 const SenderInfo: React.FC<{ fromAddress: string; senderName?: string }> = ({ fromAddress, senderName }) => {
@@ -60,6 +61,7 @@ export const MerchantDashboardScreen: React.FC<
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [businessName, setBusinessName] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [totalRevenue, setTotalRevenue] = useState('0');
   const [totalTransactions, setTotalTransactions] = useState(0);
@@ -84,6 +86,7 @@ export const MerchantDashboardScreen: React.FC<
       const profile = await getMerchantProfile(walletAddress);
       if (profile) {
         setBusinessName(profile.business_name);
+        setLogoUrl(profile.logo_url && profile.logo_url !== 'default-merchant-logo' ? profile.logo_url : null);
       }
 
       // Load analytics
@@ -144,8 +147,15 @@ export const MerchantDashboardScreen: React.FC<
       >
         {/* Welcome Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.businessName}>{businessName}</Text>
+          <Image
+            source={logoUrl ? { uri: logoUrl } : DEFAULT_MERCHANT_LOGO}
+            style={styles.businessLogo}
+            onError={() => setLogoUrl(null)}
+          />
+          <View style={styles.headerText}>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.businessName} numberOfLines={2}>{businessName}</Text>
+          </View>
         </View>
 
         {/* Top Row - QR Code and Revenue side by side */}
@@ -395,7 +405,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
     marginBottom: SPACING.md,
+  },
+  businessLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  headerText: {
+    flex: 1,
   },
   greeting: {
     fontSize: FONT_SIZES.md,

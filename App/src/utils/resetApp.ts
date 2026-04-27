@@ -4,7 +4,7 @@ import { clearSessionPin } from '../services/wallet';
 
 /**
  * Reset entire app to test onboarding flow
- * Use this to clear all stored data and test phone verification
+ * Use this to clear all stored data and test verification
  */
 export async function resetApp(): Promise<void> {
   try {
@@ -16,8 +16,10 @@ export async function resetApp(): Promise<void> {
     await SecureStore.deleteItemAsync('cpay_stellar_biometric_backup_available');
     clearSessionPin();
     
-    // Clear phone verification
+    // Clear verification markers
     await AsyncStorage.removeItem('phone_number');
+    await AsyncStorage.removeItem('email_verified');
+    await AsyncStorage.removeItem('user_email');
     
     // Clear any other stored data
     await AsyncStorage.clear();

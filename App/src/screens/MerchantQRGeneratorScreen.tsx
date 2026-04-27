@@ -24,8 +24,10 @@ import { MONEY_SYMBOL, MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } 
 import { generatePaymentQRWithId } from '../utils/qrCode';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
+import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
+const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
 
 interface MerchantQRGeneratorScreenProps {
   navigation: any;
@@ -122,8 +124,8 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
       const uri = await viewShotRef.current.capture();
       
       // Request permission to save to media library
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
+      const hasPermission = await requestPhotoSavePermission();
+      if (!hasPermission) {
         AlertManager.alert('Permission Required', 'Please grant permission to save images to your device');
         return;
       }
@@ -133,7 +135,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
       AlertManager.alert('Success', 'QR code saved to your gallery!');
     } catch (error) {
       console.error('Error downloading QR:', error);
-      AlertManager.alert('Error', 'Failed to download QR code');
+      AlertManager.alert('Error', getMediaLibraryDownloadErrorMessage(error));
     }
   };
 
@@ -179,9 +181,9 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
         {!generatedQR && (
           <View style={styles.header}>
             {logoUrl ? (
-              <Image source={{ uri: logoUrl }} style={styles.headerLogo} />
+              <Image source={{ uri: logoUrl }} style={styles.headerLogo} onError={() => setLogoUrl(null)} />
             ) : (
-              <Image source={require('../../assets/default-merchant-image-cryptopay.png')} style={styles.headerLogo} />
+              <Image source={DEFAULT_MERCHANT_LOGO} style={styles.headerLogo} />
             )}
             <Text style={styles.title}>Create Payment QR</Text>
             <Text style={styles.subtitle}>
@@ -244,9 +246,9 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
               {/* Business Info Header */}
               <View style={styles.businessHeader}>
                 {logoUrl ? (
-                  <Image source={{ uri: logoUrl }} style={styles.businessLogo} />
+                  <Image source={{ uri: logoUrl }} style={styles.businessLogo} onError={() => setLogoUrl(null)} />
                 ) : (
-                  <Image source={require('../../assets/default-merchant-image-cryptopay.png')} style={styles.businessLogo} />
+                  <Image source={DEFAULT_MERCHANT_LOGO} style={styles.businessLogo} />
                 )}
                 <Text style={styles.qrLabel}>{businessName}</Text>
               </View>
