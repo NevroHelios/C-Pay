@@ -554,7 +554,7 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-const relayerHttpServer = app.listen(PORT, () => {
+const relayerHttpServer = app.listen(PORT, '0.0.0.0', () => {
   console.log(`C-Pay Stellar relayer listening on port ${PORT}`);
   console.log(`Network: ${config.networkName}`);
   console.log(`Sponsor: ${sponsorKeypair.publicKey()}`);
