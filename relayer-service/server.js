@@ -125,8 +125,10 @@ app.get('/health', async (_req, res) => {
 
 app.get('/account/:accountId/status', async (req, res) => {
   const accountId = assertAccountId(req.params.accountId, 'accountId');
-  const status = await getAccountStatus(accountId);
-  const retryAfterSeconds = getAddMoneyRetryAfterSeconds(accountId);
+  const [status, retryAfterSeconds] = await Promise.all([
+    getAccountStatus(accountId),
+    getAddMoneyRetryAfterSeconds(accountId),
+  ]);
 
   res.json({
     ...status,
@@ -454,7 +456,7 @@ app.post('/add-money', requireAuthenticatedUser, async (req, res) => {
     });
   }
 
-  const retryAfterSeconds = getAddMoneyRetryAfterSeconds(accountId);
+  const retryAfterSeconds = await getAddMoneyRetryAfterSeconds(accountId);
   if (retryAfterSeconds > 0) {
     return res.status(429).json({
       error: 'Add Money is cooling down for this account',
@@ -498,7 +500,16 @@ app.post('/add-money', requireAuthenticatedUser, async (req, res) => {
     assetCode: config.assetCode,
   };
 
-  addMoneyCooldowns.set(accountId, Date.now() + config.addMoneyCooldownMs);
+  const nextAvailableAt = new Date(Date.now() + config.addMoneyCooldownMs).toISOString();
+  addMoneyCooldowns.set(accountId, Date.parse(nextAvailableAt));
+  await recordAddMoneyClaim({
+    walletAddress: accountId,
+    amount,
+    txHash: result.hash,
+    idempotencyKey,
+    nextAvailableAt,
+  });
+
   if (idempotencyKey) {
     idempotencyCache.set(idempotencyKey, response);
     setTimeout(() => idempotencyCache.delete(idempotencyKey), config.idempotencyTtlMs).unref();
@@ -574,6 +585,8 @@ function loadConfig() {
   const authRequired = readBooleanEnv('RELAYER_AUTH_REQUIRED', networkName === 'public');
   const addMoneyEnabled = readBooleanEnv('ENABLE_ADD_MONEY', networkName !== 'public');
   const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET || '';
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   const sorobanRpcUrl = process.env.SOROBAN_RPC_URL || (networkName === 'testnet' ? 'https://soroban-testnet.stellar.org' : '');
   const cpayContractId = process.env.CPAY_CONTRACT_ID || '';
   const tokenContractId = process.env.TOKEN_CONTRACT_ID || '';
@@ -635,6 +648,8 @@ function loadConfig() {
     lowAssetThreshold: Number(process.env.LOW_CPINR_THRESHOLD || 1000),
     authRequired,
     supabaseJwtSecret,
+    supabaseUrl,
+    supabaseServiceRoleKey,
     addMoneyEnabled,
     sorobanRpcUrl,
     cpayContractId,
@@ -1235,10 +1250,105 @@ async function getAccountStatus(accountId) {
   }
 }
 
-function getAddMoneyRetryAfterSeconds(accountId) {
+async function getAddMoneyRetryAfterSeconds(accountId) {
   const cooldownUntil = addMoneyCooldowns.get(accountId) || 0;
   const remainingMs = cooldownUntil - Date.now();
-  return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+  const inMemoryRetryAfter = remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+  const persistedRetryAfter = await getPersistedAddMoneyRetryAfterSeconds(accountId);
+  return Math.max(inMemoryRetryAfter, persistedRetryAfter);
+}
+
+async function getPersistedAddMoneyRetryAfterSeconds(accountId) {
+  if (!isSupabasePersistenceEnabled()) {
+    return 0;
+  }
+
+  try {
+    const query = new URLSearchParams({
+      select: 'next_available_at',
+      wallet_address: `eq.${accountId}`,
+      next_available_at: `gt.${new Date().toISOString()}`,
+      order: 'next_available_at.desc',
+      limit: '1',
+    });
+    const rows = await supabaseRestRequest(`add_money_claims?${query.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    const nextAvailableAt = Array.isArray(rows) ? rows[0]?.next_available_at : null;
+    if (!nextAvailableAt) {
+      return 0;
+    }
+
+    const remainingMs = new Date(nextAvailableAt).getTime() - Date.now();
+    return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+  } catch (error) {
+    console.warn('Add Money claim cooldown lookup skipped:', error.message);
+    return 0;
+  }
+}
+
+async function recordAddMoneyClaim({
+  walletAddress,
+  amount,
+  txHash,
+  idempotencyKey,
+  nextAvailableAt,
+}) {
+  if (!isSupabasePersistenceEnabled()) {
+    return;
+  }
+
+  try {
+    const conflictColumn = idempotencyKey ? 'idempotency_key' : 'tx_hash';
+    const row = {
+      wallet_address: walletAddress,
+      amount,
+      asset_code: config.assetCode,
+      asset_issuer: config.assetIssuer,
+      tx_hash: txHash,
+      idempotency_key: idempotencyKey || null,
+      next_available_at: nextAvailableAt,
+    };
+
+    await supabaseRestRequest(`add_money_claims?on_conflict=${conflictColumn}`, {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(row),
+    });
+  } catch (error) {
+    console.warn('Add Money claim persistence skipped:', error.message);
+  }
+}
+
+function isSupabasePersistenceEnabled() {
+  return Boolean(config.supabaseUrl && config.supabaseServiceRoleKey);
+}
+
+async function supabaseRestRequest(path, options = {}) {
+  if (typeof fetch !== 'function') {
+    throw new Error('global fetch is unavailable in this Node runtime');
+  }
+
+  const baseUrl = config.supabaseUrl.replace(/\/$/, '');
+  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: config.supabaseServiceRoleKey,
+      Authorization: `Bearer ${config.supabaseServiceRoleKey}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(text || `Supabase request failed with status ${response.status}`);
+  }
+
+  return text ? JSON.parse(text) : null;
 }
 
 function delay(ms) {

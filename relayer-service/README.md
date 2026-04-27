@@ -27,6 +27,8 @@ npm start
 - `CONTRACT_ADMIN_SECRET`: secret seed for merchant registration and merchant account rotation
 - `RELAYER_AUTH_REQUIRED`: set to `true` for production/public-network deployments
 - `SUPABASE_JWT_SECRET`: required when relayer auth is enabled
+- `SUPABASE_URL`: optional; enables persistent Add Money claim logging/cooldowns
+- `SUPABASE_SERVICE_ROLE_KEY`: optional; required with `SUPABASE_URL` for relayer-only writes to `add_money_claims`
 - `ENABLE_ADD_MONEY`: defaults off on `public`; keep off for real-money production
 
 Keep issuer secrets offline. The relayer needs sponsor and capped distribution secrets for Stellar payments, plus contract admin/relayer secrets only while this MVP backend owns contract sync and confirmation.
