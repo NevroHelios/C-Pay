@@ -5,6 +5,7 @@ import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, TYPOGRAPHY } from 
 import { formatDateShort } from '../utils/date';
 import { convertAssetToINR, formatINR } from '../utils/currency';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
+import { formatTransactionHash, isValidTransactionHash } from '../services/blockchain';
 
 interface Transaction {
   id?: string;
@@ -92,6 +93,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   // Phase 2: Use user_visible_status if available, fallback to status
   const displayStatus = transaction.user_visible_status || transaction.status;
   const statusConfig = getStatusConfig(displayStatus, transaction.internal_status);
+  const hasChainHash = isValidTransactionHash(transaction.tx_hash);
   
   const formatDate = (dateString: string) => formatDateShort(dateString);
 
@@ -139,9 +141,14 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     >
       <View style={styles.transactionHeader}>
         <View style={styles.transactionInfo}>
-          <Text style={styles.transactionId}>
-            {transaction.transaction_id || 'TXN-...'}
-          </Text>
+          <View style={styles.transactionHashRow}>
+            <Text style={styles.transactionId}>
+              {formatTransactionHash(transaction.tx_hash)}
+            </Text>
+            {hasChainHash && (
+              <Ionicons name="open-outline" size={13} color={COLORS.primary} />
+            )}
+          </View>
           <Text style={styles.transactionName} numberOfLines={1}>
             {isReceived ? 'From: ' : 'To: '}{displayName}
           </Text>
@@ -187,6 +194,12 @@ const styles = StyleSheet.create({
   },
   transactionInfo: {
     flex: 1,
+  },
+  transactionHashRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
   },
   transactionId: {
     fontSize: FONT_SIZES.sm,

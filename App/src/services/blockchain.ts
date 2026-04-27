@@ -411,6 +411,22 @@ export function getExplorerUrl(type: 'account' | 'tx', value: string): string {
   return `${base}/${type}/${value}`;
 }
 
+export function isValidTransactionHash(value?: string | null): value is string {
+  return /^[a-fA-F0-9]{64}$/.test(value || '');
+}
+
+export function formatTransactionHash(value?: string | null): string {
+  if (!value) {
+    return 'Pending';
+  }
+
+  if (value.length <= 18) {
+    return value;
+  }
+
+  return `${value.slice(0, 10)}...${value.slice(-8)}`;
+}
+
 function normalizeAmount(value: string): string {
   const amount = String(value).trim();
   if (!/^\d+(\.\d{1,7})?$/.test(amount)) {

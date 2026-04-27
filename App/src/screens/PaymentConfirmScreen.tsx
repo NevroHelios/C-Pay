@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PaymentQRData } from '../utils/qrCode';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { sendPayment } from '../services/blockchain';
-import { saveTransaction, generateTransactionId } from '../services/storage';
+import { saveTransaction } from '../services/storage';
 import { monitorTransaction } from '../services/transactionMonitor';
 import { getMerchantById, getMerchantByAddress } from '../services/merchant';
 import { checkTransactionLimit, recordTransaction, checkRateLimit, recordAction } from '../services/securityLimits';
@@ -159,44 +159,22 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       const merchantOrRecipientName = resolvedMerchantInfo?.business_name || paymentData.name || 'Unknown';
       const isMerchantPayment = !!(paymentData.merchantId || resolvedMerchantInfo?.id);
       
-      // Generate transaction ID upfront
-      const transactionId = generateTransactionId();
-      
       // Navigate to Processing screen immediately after authentication
       setLoading(false);
       navigation.replace('PaymentProcessing', {
-        transactionId: transactionId,
         amount: paymentData.amount,
         recipientName: merchantOrRecipientName,
         recipientAddress: paymentData.merchant,
       });
 
       // Phase 2: Execute Stellar payment with timeout
-      const tempTxId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const submittedAt = new Date().toISOString();
       const startTime = Date.now();
 
-      // Save transaction as "processing"
       const merchantId = paymentData.merchantId || resolvedMerchantInfo?.id || null;
-      
+
       // Get sender's name from AsyncStorage
       const senderName = await AsyncStorage.getItem('user_name');
-
-      await saveTransaction({
-        tx_hash: tempTxId,
-        to_address: paymentData.merchant,
-        amount: paymentData.amount,
-        status: 'pending',
-        internal_status: 'processing',
-        user_visible_status: 'success',
-        merchant_name: isMerchantPayment ? merchantOrRecipientName : undefined,
-        recipient_name: merchantOrRecipientName,
-        sender_name: senderName || undefined,
-        note: paymentData.note || undefined,
-        transaction_type: isMerchantPayment ? 'merchant' : 'personal',
-        merchant_id: merchantId || undefined,
-        submitted_at: submittedAt,
-      });
 
       // Step 3: Execute blockchain transaction in the background
       void (async () => {
@@ -220,9 +198,8 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
           // Phase 4: Record successful transaction for limit tracking
           await recordTransaction(paymentData.amount);
 
-          // Update transaction with transaction_id
+          // Store the Stellar transaction hash as the receipt identifier.
           await saveTransaction({
-            transaction_id: transactionId,
             tx_hash: txHash,
             to_address: paymentData.merchant,
             from_address: wallet.address,
@@ -241,7 +218,6 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
 
           // Navigate to Success screen
           navigation.replace('PaymentSuccess', {
-            transactionId: transactionId,
             transactionHash: txHash,
             fromAddress: wallet.address,
             amount: paymentData.amount,
@@ -288,24 +264,6 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
           } else {
             failureReason = backgroundError.message + ' Your pilot credits are safe - no amount was deducted.';
           }
-
-          // Update transaction to failed
-          await saveTransaction({
-            tx_hash: tempTxId,
-            to_address: paymentData.merchant,
-            amount: paymentData.amount,
-            status: 'failed',
-            internal_status: 'failed',
-            user_visible_status: 'failed',
-            merchant_name: isMerchantPayment ? merchantOrRecipientName : undefined,
-            recipient_name: merchantOrRecipientName,
-            sender_name: senderName || undefined,
-            note: paymentData.note || undefined,
-            transaction_type: isMerchantPayment ? 'merchant' : 'personal',
-            merchant_id: merchantId || undefined,
-            submitted_at: submittedAt,
-            failure_reason: failureReason,
-          });
 
           // Navigate to Failure screen
           navigation.replace('PaymentFailure', {

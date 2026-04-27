@@ -14,7 +14,7 @@ import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { convertAssetToINR, formatINR } from '../utils/currency';
 import { formatDateLong } from '../utils/date';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
-import { getExplorerUrl } from '../services/blockchain';
+import { formatTransactionHash, getExplorerUrl, isValidTransactionHash } from '../services/blockchain';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
@@ -87,6 +87,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   };
 
   const statusConfig = getStatusConfig(transaction.status);
+  const hasChainHash = isValidTransactionHash(transaction.tx_hash);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -99,8 +100,8 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   };
 
   const openExplorer = () => {
-    if (transaction.tx_hash) {
-      const url = getExplorerUrl('tx', transaction.tx_hash);
+    if (hasChainHash) {
+      const url = getExplorerUrl('tx', transaction.tx_hash!);
       Linking.openURL(url);
     }
   };
@@ -140,18 +141,30 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
             {/* Transaction Details */}
             <View style={styles.detailsCard}>
-              {/* Transaction ID */}
-              {transaction.transaction_id && (
-                <TouchableOpacity
-                  style={styles.detailRow}
-                  onPress={() => copyToClipboard(transaction.transaction_id!, 'Transaction ID')}
-                >
-                  <Text style={styles.detailLabel}>Transaction ID</Text>
+              {/* Stellar transaction hash */}
+              {hasChainHash && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Transaction Hash</Text>
                   <View style={styles.detailValueRow}>
-                    <Text style={styles.detailValueHighlight}>{transaction.transaction_id}</Text>
-                    <Ionicons name="copy-outline" size={16} color={COLORS.primary} />
+                    <TouchableOpacity
+                      style={styles.hashButton}
+                      onPress={() => copyToClipboard(transaction.tx_hash!, 'Transaction Hash')}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.detailValueHighlight}>
+                        {formatTransactionHash(transaction.tx_hash)}
+                      </Text>
+                      <Ionicons name="copy-outline" size={16} color={COLORS.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={openExplorer}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="open-outline" size={16} color={COLORS.primary} />
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               )}
 
               {/* Type */}
@@ -341,6 +354,14 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 2,
     justifyContent: 'flex-end',
+  },
+  hashButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconButton: {
+    padding: 2,
   },
   addressText: {
     fontSize: FONT_SIZES.xs,

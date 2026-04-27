@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
 import { generateCPayId } from '../utils/cpayId';
-import { registerContractMerchant } from './blockchain';
+import { isValidTransactionHash, registerContractMerchant } from './blockchain';
 
 // Event emitter for real-time merchant status updates
 export const merchantEvents = new EventEmitter();
@@ -457,7 +457,7 @@ export async function getMerchantAnalytics(merchantId: string): Promise<{
  */
 export interface MerchantTransaction {
   id: string;
-  transaction_id: string;
+  transaction_id?: string;
   tx_hash: string;
   from_address: string;
   to_address: string;
@@ -496,7 +496,7 @@ export async function getMerchantTransactions(
       return [];
     }
 
-    return transactions || [];
+    return (transactions || []).filter((tx) => isValidTransactionHash(tx.tx_hash));
   } catch (error) {
     console.error('Error getting merchant transactions:', error);
     return [];

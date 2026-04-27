@@ -7,6 +7,7 @@ import {
   Animated,
   Dimensions,
   Platform,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
@@ -15,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { TransactionDetailModal, TransactionDetail } from '../components/TransactionDetailModal';
 import { formatMoneyAmount } from '../utils/currency';
+import { formatTransactionHash, getExplorerUrl } from '../services/blockchain';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,7 +24,6 @@ interface PaymentSuccessScreenProps {
   navigation: any;
   route: {
     params: {
-      transactionId: string;
       transactionHash: string;
       fromAddress: string;
       amount: string;
@@ -41,7 +42,6 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
   route,
 }) => {
   const {
-    transactionId,
     transactionHash,
     fromAddress,
     amount,
@@ -126,9 +126,12 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
     }
   };
 
+  const handleOpenExplorer = () => {
+    Linking.openURL(getExplorerUrl('tx', transactionHash));
+  };
+
   // Transaction data for modal
   const transactionData: TransactionDetail = {
-    transaction_id: transactionId,
     tx_hash: transactionHash,
     from_address: fromAddress,
     to_address: recipientAddress,
@@ -197,8 +200,15 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
                 <Text style={styles.receiptValue} numberOfLines={1}>{recipientName}</Text>
               </View>
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Transaction ID</Text>
-                <Text style={styles.receiptValue}>{transactionId}</Text>
+                <Text style={styles.receiptLabel}>Transaction Hash</Text>
+                <TouchableOpacity
+                  style={styles.receiptValueRow}
+                  onPress={handleOpenExplorer}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.receiptHashText}>{formatTransactionHash(transactionHash)}</Text>
+                  <Ionicons name="open-outline" size={14} color={COLORS.primary} />
+                </TouchableOpacity>
               </View>
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Date & Time</Text>
@@ -391,6 +401,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     flex: 1.5,
     textAlign: 'right',
+  },
+  receiptValueRow: {
+    flex: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  receiptHashText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   // Action Buttons
   actionButtons: {

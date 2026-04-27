@@ -16,7 +16,6 @@ interface PaymentProcessingScreenProps {
   navigation: any;
   route: {
     params: {
-      transactionId: string;
       amount: string;
       recipientName: string;
       recipientAddress: string;
@@ -28,7 +27,7 @@ export const PaymentProcessingScreen: React.FC<PaymentProcessingScreenProps> = (
   navigation,
   route,
 }) => {
-  const { transactionId, amount, recipientName, recipientAddress } = route.params;
+  const { amount, recipientName, recipientAddress } = route.params;
   
   // Animations
   const spinValue = useRef(new Animated.Value(0)).current;

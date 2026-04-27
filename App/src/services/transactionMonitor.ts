@@ -1,4 +1,4 @@
-import { getTransactionStatus, waitForTransaction } from './blockchain';
+import { getTransactionStatus, isValidTransactionHash, waitForTransaction } from './blockchain';
 import { updateTransactionStatus, getTransactions } from './storage';
 
 /**
@@ -16,7 +16,11 @@ let pollingInterval: NodeJS.Timeout | null = null;
 export async function checkTransactionStatus(txHash: string): Promise<void> {
   try {
     console.log(`🔍 Checking status for tx: ${txHash.slice(0, 10)}...`);
-    
+    if (!isValidTransactionHash(txHash)) {
+      console.log('Skipping status check for non-Stellar transaction hash');
+      return;
+    }
+
     const status = await getTransactionStatus(txHash);
     
     if (status === 'success') {
@@ -50,7 +54,9 @@ export async function checkTransactionStatus(txHash: string): Promise<void> {
 export async function pollPendingTransactions(): Promise<void> {
   try {
     const transactions = await getTransactions();
-    const pendingTxs = transactions.filter(tx => tx.status === 'pending');
+    const pendingTxs = transactions.filter(tx =>
+      tx.status === 'pending' && isValidTransactionHash(tx.tx_hash)
+    );
     
     if (pendingTxs.length === 0) {
       console.log('✨ No pending transactions to poll');

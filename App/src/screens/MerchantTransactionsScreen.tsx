@@ -20,6 +20,7 @@ import { formatDateShort } from '../utils/date';
 import { TransactionDetailModal } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
+import { formatTransactionHash } from '../services/blockchain';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
@@ -101,7 +102,10 @@ export const MerchantTransactionsScreen: React.FC<MerchantTransactionsScreenProp
     >
       <View style={styles.transactionHeader}>
         <View style={styles.transactionInfo}>
-          <Text style={styles.transactionId}>{tx.transaction_id || 'TXN-...'}</Text>
+          <View style={styles.transactionHashRow}>
+            <Text style={styles.transactionId}>{formatTransactionHash(tx.tx_hash)}</Text>
+            <Ionicons name="open-outline" size={13} color={COLORS.primary} />
+          </View>
           <Text style={styles.transactionDate}>
             {formatDateShort(tx.created_at)}
           </Text>
@@ -310,6 +314,12 @@ const styles = StyleSheet.create({
   },
   transactionInfo: {
     flex: 1,
+  },
+  transactionHashRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
   },
   transactionId: {
     fontSize: FONT_SIZES.sm,

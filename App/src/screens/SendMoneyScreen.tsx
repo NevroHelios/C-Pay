@@ -13,7 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getBalance, isValidAccountId, transferTokens } from '../services/blockchain';
-import { saveTransaction, getUserDisplayName, generateTransactionId } from '../services/storage';
+import { saveTransaction, getUserDisplayName } from '../services/storage';
 import { getMerchantByAddress } from '../services/merchant';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
@@ -352,11 +352,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               // Navigate to Processing screen immediately
               const startTime = Date.now();
               
-              // Generate transaction ID upfront
-              const transactionId = generateTransactionId();
-              
               navigation.replace('PaymentProcessing', {
-                transactionId: transactionId,
                 amount: amount,
                 recipientName: effectiveRecipientName || displayId,
                 recipientAddress: recipientAddress.trim(),
@@ -384,7 +380,6 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               const senderName = await AsyncStorage.getItem('user_name');
               
               const transactionData = {
-                transaction_id: transactionId,
                 tx_hash: txHash,
                 to_address: recipientAddress.trim(),
                 from_address: walletAddress,
@@ -407,7 +402,6 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
               // Navigate to Success screen
               navigation.replace('PaymentSuccess', {
-                transactionId: transactionId,
                 transactionHash: txHash,
                 fromAddress: walletAddress,
                 amount: amount,

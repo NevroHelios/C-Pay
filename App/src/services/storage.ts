@@ -2,14 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import EventEmitter from 'eventemitter3';
 import { generateCPayId } from '../utils/cpayId';
-import { getNetworkConfig } from './blockchain';
+import { getNetworkConfig, isValidTransactionHash } from './blockchain';
 
 // Event emitter for real-time updates
 export const storageEvents = new EventEmitter();
 
 export interface Transaction {
   id?: string;
-  transaction_id?: string; // Unique readable ID like TXN-XXXXXXXX
+  transaction_id?: string; // Legacy readable ID; new receipts use tx_hash.
   user_id?: string;
   tx_hash: string;
   to_address: string;
@@ -33,18 +33,6 @@ export interface Transaction {
   submitted_at?: string; // When user clicked "Pay"
   confirmed_at?: string; // When blockchain confirmed
   failure_reason?: string; // User-friendly error message
-}
-
-/**
- * Generate a unique transaction ID like TXN-XXXXXXXX
- */
-export function generateTransactionId(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = 'TXN-';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
 }
 
 // Hybrid storage: Local (AsyncStorage) + Cloud (Supabase)
@@ -120,26 +108,41 @@ export async function saveTransaction(tx: Transaction): Promise<void> {
   try {
     const networkConfig = getNetworkConfig();
 
+    const hasBlockchainHash = isValidTransactionHash(tx.tx_hash);
+
     // Save locally first (offline-first approach)
     const existing = await AsyncStorage.getItem('transactions');
     const txs = existing ? JSON.parse(existing) : [];
-    
-    // Add timestamp and transaction_id if not present
+
+    // Add timestamp and network metadata. transaction_id is legacy and stays nullable;
+    // the Stellar transaction hash is the receipt identifier.
     const txWithTime = {
       ...tx,
       created_at: tx.created_at || new Date().toISOString(),
       id: tx.id || tx.tx_hash,
-      transaction_id: tx.transaction_id || generateTransactionId(),
+      transaction_id: tx.transaction_id,
       transaction_type: tx.transaction_type || 'personal',
       stellar_network: tx.stellar_network || networkConfig.network,
       asset_code: tx.asset_code || networkConfig.assetCode,
       asset_issuer: tx.asset_issuer || networkConfig.assetIssuer,
     };
-    
-    txs.unshift(txWithTime);
-    await AsyncStorage.setItem('transactions', JSON.stringify(txs));
-    
+
+    const existingIndex = txs.findIndex((item: Transaction) => item.tx_hash === txWithTime.tx_hash);
+    const nextTxs = existingIndex >= 0
+      ? txs.map((item: Transaction, index: number) =>
+          index === existingIndex ? { ...item, ...txWithTime } : item
+        )
+      : [txWithTime, ...txs];
+
+    await AsyncStorage.setItem('transactions', JSON.stringify(nextTxs));
+
     console.log('✅ Transaction saved locally:', txWithTime.tx_hash);
+
+    if (!hasBlockchainHash) {
+      console.log('Skipping Supabase sync until a Stellar transaction hash exists');
+      storageEvents.emit('transactionSaved', txWithTime);
+      return;
+    }
 
     // Sync to Supabase (cloud backup) - non-blocking
     try {
@@ -154,9 +157,6 @@ export async function saveTransaction(tx: Transaction): Promise<void> {
         userId = await getOrCreateUser(tx.from_address, phoneNumber || undefined, displayName || undefined);
       }
 
-      // Generate transaction_id if not present
-      const transactionId = tx.transaction_id || generateTransactionId();
-
       // Get sender's display name from users table in database
       let senderName = tx.sender_name || null;
       if (!senderName && tx.from_address) {
@@ -167,9 +167,9 @@ export async function saveTransaction(tx: Transaction): Promise<void> {
         senderName = await AsyncStorage.getItem('user_name');
       }
 
-      const { data, error } = await supabase.from('transactions').insert({
+      const { data, error } = await supabase.from('transactions').upsert({
         user_id: userId,
-        transaction_id: transactionId,
+        transaction_id: tx.transaction_id || null,
         transaction_type: tx.transaction_type || 'personal',
         merchant_id: tx.merchant_id || null,
         tx_hash: tx.tx_hash,
@@ -191,7 +191,7 @@ export async function saveTransaction(tx: Transaction): Promise<void> {
         submitted_at: tx.submitted_at || new Date().toISOString(),
         confirmed_at: tx.confirmed_at,
         failure_reason: tx.failure_reason,
-      }).select();
+      }, { onConflict: 'tx_hash' }).select();
 
       if (error) {
         console.error('❌ Supabase sync error:', error);
@@ -216,7 +216,8 @@ export async function getTransactions(): Promise<Transaction[]> {
   try {
     // Get from local storage first (always available)
     const local = await AsyncStorage.getItem('transactions');
-    const localTxs = local ? JSON.parse(local) : [];
+    const rawLocalTxs = local ? JSON.parse(local) : [];
+    const localTxs = rawLocalTxs.filter((tx: Transaction) => isValidTransactionHash(tx.tx_hash));
     
     console.log(`📦 Loaded ${localTxs.length} transactions from local storage`);
 
@@ -238,11 +239,12 @@ export async function getTransactions(): Promise<Transaction[]> {
         .limit(100);
 
       if (data && !error && data.length > 0) {
-        console.log(`☁️ Loaded ${data.length} transactions from Supabase`);
-        
+        const chainTxs = data.filter((tx: Transaction) => isValidTransactionHash(tx.tx_hash));
+        console.log(`☁️ Loaded ${chainTxs.length} transactions from Supabase`);
+
         // Merge local and cloud data (remove duplicates by tx_hash)
-        const mergedTxs = [...data];
-        const txHashes = new Set(data.map(tx => tx.tx_hash));
+        const mergedTxs = [...chainTxs];
+        const txHashes = new Set(chainTxs.map(tx => tx.tx_hash));
         
         localTxs.forEach((localTx: Transaction) => {
           if (!txHashes.has(localTx.tx_hash)) {
@@ -277,6 +279,10 @@ export async function updateTransactionStatus(
   failureReason?: string
 ): Promise<void> {
   try {
+    if (!isValidTransactionHash(txHash)) {
+      return;
+    }
+
     // Update locally
     const existing = await AsyncStorage.getItem('transactions');
     if (existing) {
