@@ -19,6 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { Button, Card } from '../components';
 import { AlertManager } from '../utils/alert';
+import { MONEY_UNIT_LABEL, formatMoneyNumber } from '../utils/currency';
+import { PILOT_NOTICE_TEXT } from '../utils/pilot';
 
 interface PaymentConfirmScreenProps {
   navigation: any;
@@ -147,7 +149,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       setLoading(false);
       navigation.replace('PaymentProcessing', {
         transactionId: transactionId,
-        amount: paymentData.amount, // Amount is already in INR (1:1 with tokens)
+        amount: paymentData.amount,
         recipientName: merchantOrRecipientName,
         recipientAddress: paymentData.merchant,
       });
@@ -221,7 +223,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
             transactionId: transactionId,
             transactionHash: txHash,
             fromAddress: wallet.address,
-            amount: paymentData.amount, // Amount is already in INR (1:1 with tokens)
+            amount: paymentData.amount,
             recipientName: merchantOrRecipientName,
             recipientAddress: paymentData.merchant,
             processingTime,
@@ -248,7 +250,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
           let errorMessage = 'Transaction Failed';
           
           if (backgroundError.message?.includes('timeout') || backgroundError.message?.includes('slow')) {
-            failureReason = 'Transaction timed out after 1 minute. Your money is safe - no amount was deducted. The network is experiencing delays. Please try again.';
+            failureReason = 'Transaction timed out after 1 minute. Your pilot credits are safe - no amount was deducted. The network is experiencing delays. Please try again.';
             errorMessage = 'Network Timeout';
           } else if (backgroundError.message?.includes('insufficient funds') || backgroundError.message?.includes('Insufficient')) {
             failureReason = 'You don\'t have enough balance to complete this transaction.';
@@ -260,10 +262,10 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
             failureReason = 'Unable to connect to the Stellar network. Check your internet connection.';
             errorMessage = 'Network Connection Failed';
           } else if (backgroundError.message?.includes('temporarily unavailable')) {
-            failureReason = 'Payment service is temporarily unavailable. Your money is safe. Please try again in a few moments.';
+            failureReason = 'Payment service is temporarily unavailable. Your pilot credits are safe. Please try again in a few moments.';
             errorMessage = 'Service Unavailable';
           } else {
-            failureReason = backgroundError.message + ' Your money is safe - no amount was deducted.';
+            failureReason = backgroundError.message + ' Your pilot credits are safe - no amount was deducted.';
           }
 
           // Update transaction to failed
@@ -354,8 +356,8 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
         <View style={styles.amountSection}>
           <Text style={styles.amountLabel}>Amount</Text>
           <View style={styles.amountContainer}>
-            <Text style={styles.amountValue}>{paymentData.amount}</Text>
-            <Text style={styles.amountCurrency}>INR</Text>
+            <Text style={styles.amountValue}>{formatMoneyNumber(parseFloat(paymentData.amount))}</Text>
+            <Text style={styles.amountCurrency}>{MONEY_UNIT_LABEL}</Text>
           </View>
         </View>
 
@@ -394,7 +396,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       <View style={styles.securityNotice}>
         <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.textSecondary} style={styles.securityIcon} />
         <Text style={styles.securityText}>
-          PIN or biometric authentication required to confirm payment
+          PIN or biometric authentication required. {PILOT_NOTICE_TEXT}
         </Text>
       </View>
     </View>

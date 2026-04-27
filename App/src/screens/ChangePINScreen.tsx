@@ -88,7 +88,7 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
       
       AlertManager.alert(
         'PIN Changed',
-        'Your wallet PIN has been updated successfully. Your funds remain secure.',
+        'Your wallet PIN has been updated successfully. Your wallet remains secure.',
         [
           {
             text: 'OK',

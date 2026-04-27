@@ -10,6 +10,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hasWallet } from '../services/wallet';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { PILOT_NOTICE_TITLE } from '../utils/pilot';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
@@ -64,7 +65,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
           resizeMode="contain"
         />
         <Text style={styles.title}>C-Pay</Text>
-        <Text style={styles.subtitle}>INR-first payments on Stellar</Text>
+        <Text style={styles.subtitle}>{PILOT_NOTICE_TITLE} on Stellar testnet</Text>
       </View>
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color={COLORS.card} />

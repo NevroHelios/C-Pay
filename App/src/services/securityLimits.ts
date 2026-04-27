@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatMoneyAmount } from '../utils/currency';
 
 // Phase 4: Security - Transaction limits and rate limiting
 
@@ -48,7 +49,7 @@ export async function checkTransactionLimit(amount: string): Promise<{
     if (amountNum > parseFloat(MAX_AMOUNT_PER_TRANSACTION)) {
       return {
         allowed: false,
-        reason: `Maximum amount per transaction is INR ${MAX_AMOUNT_PER_TRANSACTION}`,
+        reason: `Maximum amount per transaction is ${formatMoneyAmount(parseFloat(MAX_AMOUNT_PER_TRANSACTION))}`,
       };
     }
 
@@ -64,7 +65,7 @@ export async function checkTransactionLimit(amount: string): Promise<{
     if (limit.totalAmount + amountNum > parseFloat(MAX_DAILY_AMOUNT)) {
       return {
         allowed: false,
-        reason: `Daily amount limit exceeded. Maximum INR ${MAX_DAILY_AMOUNT} per day`,
+        reason: `Daily amount limit exceeded. Maximum ${formatMoneyAmount(parseFloat(MAX_DAILY_AMOUNT))} per day`,
       };
     }
 

@@ -168,7 +168,7 @@ export const MerchantDashboardScreen: React.FC<
               <Text style={styles.analyticsLabel}>Total Revenue</Text>
             </View>
             <Text style={styles.revenueValue}>{formatINR(convertAssetToINR(parseFloat(totalRevenue)))}</Text>
-            <Text style={styles.revenueSubValue}>Add Money rail</Text>
+            <Text style={styles.revenueSubValue}>Pilot credit rail</Text>
           </View>
         </View>
 

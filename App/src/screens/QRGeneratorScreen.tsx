@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { generatePaymentQR } from '../utils/qrCode';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { MONEY_UNIT_LABEL } from '../utils/currency';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
@@ -39,7 +40,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>QR Code Generator</Text>
-        <Text style={styles.subtitle}>Create a Stellar payment request</Text>
+        <Text style={styles.subtitle}>Create a Stellar testnet payment request</Text>
       </View>
 
       {/* Input Fields */}
@@ -55,7 +56,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount (INR)</Text>
+          <Text style={styles.label}>Amount ({MONEY_UNIT_LABEL})</Text>
           <TextInput
             style={styles.input}
             value={amount}

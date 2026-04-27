@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../constants/theme';
 import { Button } from '../components';
+import { PILOT_TESTNET_TEXT } from '../utils/pilot';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const { height } = Dimensions.get('window');
@@ -40,7 +41,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
             resizeMode="contain"
           />
           <Text style={styles.title}>C-Pay</Text>
-          <Text style={styles.subtitle}>Pay in INR, settled on Stellar</Text>
+          <Text style={styles.subtitle}>Closed pilot credits on Stellar testnet</Text>
         </View>
 
         {/* Features */}
@@ -58,7 +59,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
           <FeatureItem 
             icon="card-outline"
             title="No Fee Hassle" 
-            description="Network fees are handled for you. You just send money in INR."
+            description="Network fees are handled for you. You test payments with pilot credits."
           />
           <FeatureItem 
             icon="qr-code-outline"
@@ -72,7 +73,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
       <View style={styles.footer}>
         <Button title="Get Started" onPress={handleGetStarted} size="lg" fullWidth />
         <Text style={styles.disclaimer}>
-          Stellar testnet - no real money
+          {PILOT_TESTNET_TEXT}
         </Text>
       </View>
     </SafeAreaView>

@@ -14,6 +14,7 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { TransactionDetailModal, TransactionDetail } from '../components/TransactionDetailModal';
+import { formatMoneyAmount } from '../utils/currency';
 
 const { width, height } = Dimensions.get('window');
 
@@ -131,7 +132,7 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
     tx_hash: transactionHash,
     from_address: fromAddress,
     to_address: recipientAddress,
-    amount: amount, // Amount is already in INR (1:1 with tokens)
+    amount: amount,
     status: 'success',
     created_at: new Date().toISOString(),
     merchant_name: isMerchantPayment ? recipientName : undefined,
@@ -161,7 +162,7 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
               <Ionicons name="checkmark" size={46} color={COLORS.success} />
             </View>
             <Text style={styles.successTitle}>Payment Successful</Text>
-            <Text style={styles.amountText}>₹{amount}</Text>
+            <Text style={styles.amountText}>{formatMoneyAmount(parseFloat(amount))}</Text>
           </Animated.View>
 
           {/* Receipt Card - Wrapped for receipt capture */}
@@ -185,7 +186,7 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
               {/* Amount - Prominent Display */}
               <View style={styles.receiptAmountSection}>
                 <Text style={styles.receiptAmountLabel}>AMOUNT PAID</Text>
-                <Text style={styles.receiptAmountValue}>₹{amount}</Text>
+                <Text style={styles.receiptAmountValue}>{formatMoneyAmount(parseFloat(amount))}</Text>
               </View>
 
               <View style={styles.receiptDivider} />

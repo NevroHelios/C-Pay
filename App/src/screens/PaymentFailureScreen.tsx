@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { formatMoneyAmount } from '../utils/currency';
 
 const { width } = Dimensions.get('window');
 
@@ -117,7 +118,7 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
     
     if (errorReason.toLowerCase().includes('insufficient')) {
       suggestions.push('Check your account balance');
-      suggestions.push('Add funds to your wallet');
+      suggestions.push('Claim pilot credits for your wallet');
     } else if (errorReason.toLowerCase().includes('network')) {
       suggestions.push('Check your internet connection');
       suggestions.push('Try again in a few moments');
@@ -189,7 +190,7 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
               
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Amount</Text>
-                <Text style={styles.summaryValue}>₹{amount}</Text>
+                <Text style={styles.summaryValue}>{formatMoneyAmount(parseFloat(amount))}</Text>
               </View>
               <View style={styles.summaryDivider} />
               

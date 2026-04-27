@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { authenticateWithBiometric, authenticateWithPIN } from '../utils/biometric';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatMoneyAmount } from './currency';
 
 /**
  * Confirm payment with biometric or PIN
@@ -24,7 +25,7 @@ export async function confirmPayment(amount: string, recipient: string): Promise
     } else {
       Alert.alert(
         'Confirm Payment',
-        `Send INR ${amount} to ${recipient}?`
+        `Send ${formatMoneyAmount(parseFloat(amount))} to ${recipient}?`
       );
 
       return authenticateWithPIN();

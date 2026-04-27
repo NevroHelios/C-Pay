@@ -20,7 +20,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { File, Paths } from 'expo-file-system/next';
 import { Ionicons } from '@expo/vector-icons';
 import { getMerchantProfile } from '../services/merchant';
-import { convertINRtoAsset } from '../utils/currency';
+import { MONEY_SYMBOL, MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } from '../utils/currency';
 import { generatePaymentQRWithId } from '../utils/qrCode';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
@@ -202,14 +202,14 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Amount (₹ INR) *</Text>
+                  <Text style={styles.label}>Amount ({MONEY_UNIT_LABEL}) *</Text>
                   <View style={styles.amountInputContainer}>
-                    <Text style={styles.currencySymbol}>₹</Text>
+                    <Text style={styles.currencySymbol}>{MONEY_SYMBOL}</Text>
                     <TextInput
                       style={styles.amountInput}
                       value={amount}
                       onChangeText={setAmount}
-                      placeholder="Enter amount in INR"
+                      placeholder={`Enter amount in ${MONEY_UNIT_LABEL}`}
                       placeholderTextColor={COLORS.textSecondary}
                       keyboardType="decimal-pad"
                     />
@@ -265,7 +265,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
               </View>
 
               {amount && (
-                <Text style={styles.qrAmount}>₹{amount}</Text>
+                <Text style={styles.qrAmount}>{formatMoneyAmount(parseFloat(amount))}</Text>
               )}
             </View>
           </ViewShot>

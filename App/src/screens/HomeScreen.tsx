@@ -20,7 +20,8 @@ import { getAuthenticatedWallet } from '../utils/biometric';
 import { getTransactions, saveTransaction, Transaction, storageEvents } from '../services/storage';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { formatINR } from '../utils/currency';
+import { MONEY_BALANCE_LABEL, MONEY_SYMBOL, formatMoneyAmount } from '../utils/currency';
+import { PILOT_NOTICE_TEXT, PILOT_NOTICE_TITLE } from '../utils/pilot';
 import { LoadingSpinner, TransactionItem, TransactionDetailModal } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 
@@ -49,25 +50,29 @@ const getAddMoneyErrorMessage = (error: unknown): string => {
   const addMoneyError = error as Partial<AddMoneyError>;
   const message = typeof addMoneyError.message === 'string'
     ? addMoneyError.message
-    : 'Failed to add money';
+    : 'Failed to claim pilot credits';
   const lowerMessage = message.toLowerCase();
   const code = addMoneyError.code || '';
   const retryAfterSeconds = Number(addMoneyError.retryAfterSeconds || 0);
 
   if (code === 'ADD_MONEY_COOLDOWN' || addMoneyError.status === 429 || lowerMessage.includes('cooling down')) {
     if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-      return `Please wait ${formatTimeRemaining(retryAfterSeconds)} before adding money again.`;
+      return `Please wait ${formatTimeRemaining(retryAfterSeconds)} before claiming pilot credits again.`;
     }
 
-    return 'Please wait 24 hours between Add Money claims.';
+    return 'Please wait 24 hours between pilot credit claims.';
   }
 
   if (code === 'DISTRIBUTION_LOW_ASSET' || (lowerMessage.includes('insufficient') && lowerMessage.includes('cpinr'))) {
-    return 'Add Money is temporarily unavailable because the relayer distribution account has no CPINR balance.';
+    return 'Pilot credit claims are temporarily unavailable because the relayer distribution account has no test asset balance.';
   }
 
   if (code === 'ACCOUNT_NOT_READY') {
     return 'Wallet setup could not finish yet. Please try again in a few seconds.';
+  }
+
+  if (code === 'ADD_MONEY_DISABLED') {
+    return 'Pilot credit claims are disabled for this network.';
   }
 
   if (code === 'RELAYER_TIMEOUT' || lowerMessage.includes('taking too long')) {
@@ -88,17 +93,17 @@ const getAddMoneyErrorMessage = (error: unknown): string => {
 const getAddMoneyTitle = (phase: AddMoneyPhase): string => {
   switch (phase) {
     case 'confirm':
-      return 'Add Money';
+      return 'Claim Pilot Credits';
     case 'authenticating':
       return 'Authentication Required';
     case 'processing':
-      return 'Adding Money';
+      return 'Claiming Credits';
     case 'success':
-      return 'Money Added';
+      return 'Credits Added';
     case 'error':
-      return 'Add Money Failed';
+      return 'Credit Claim Failed';
     default:
-      return 'Add Money';
+      return 'Claim Pilot Credits';
   }
 };
 
@@ -256,7 +261,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const handleAddMoney = () => {
     if (!walletAddress) return;
     setAddMoneyTxHash('');
-    setAddMoneyMessage(`Add ${formatINR(Number(ADD_MONEY_DISPLAY_AMOUNT))} test balance to your wallet. One claim is available every 24 hours.`);
+    setAddMoneyMessage(`Claim ${formatMoneyAmount(Number(ADD_MONEY_DISPLAY_AMOUNT))} for your pilot wallet. One claim is available every 24 hours.`);
     setAddMoneyPhase('confirm');
   };
 
@@ -278,9 +283,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       await waitForUiPaint();
 
       const wallet = await getAuthenticatedWallet(
-        'Add Money',
-        'Enter your 6-digit PIN to add test money',
-        'Unlock wallet to add money'
+        'Claim Pilot Credits',
+        'Enter your 6-digit PIN to claim pilot credits',
+        'Unlock wallet to claim pilot credits'
       );
 
       if (!wallet) {
@@ -290,12 +295,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       if (wallet.publicKey !== walletAddress) {
-        setAddMoneyMessage('This device wallet does not match the active profile. Please sign in again before adding money.');
+        setAddMoneyMessage('This device wallet does not match the active profile. Please sign in again before claiming pilot credits.');
         setAddMoneyPhase('error');
         return;
       }
 
-      setAddMoneyMessage('Preparing your wallet on Stellar and adding test balance...');
+      setAddMoneyMessage('Preparing your wallet on Stellar testnet and adding pilot credits...');
       setAddMoneyPhase('processing');
       await waitForUiPaint();
 
@@ -309,19 +314,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         status: 'success',
         internal_status: 'confirmed',
         user_visible_status: 'success',
-        sender_name: 'C-Pay Add Money',
+        sender_name: 'C-Pay Pilot Credits',
         recipient_name: 'Your wallet',
-        note: 'Test balance added',
+        note: 'Pilot credits added',
       });
 
       void loadTransactions();
       void loadBalance(walletAddress);
       setTimeout(() => loadBalance(walletAddress), 5000);
 
-      setAddMoneyMessage(`${formatINR(Number(ADD_MONEY_DISPLAY_AMOUNT))} has been added. Your balance will refresh automatically.`);
+      setAddMoneyMessage(`${formatMoneyAmount(Number(ADD_MONEY_DISPLAY_AMOUNT))} has been added. Your balance will refresh automatically.`);
       setAddMoneyPhase('success');
     } catch (error: any) {
-      console.error('Add Money error:', error);
+      console.error('Pilot credits error:', error);
 
       setAddMoneyMessage(getAddMoneyErrorMessage(error));
       setAddMoneyPhase('error');
@@ -365,16 +370,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={styles.balanceHeader}>
             <View style={styles.balanceLabelContainer}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.textInverse} style={styles.balanceIcon} />
-              <Text style={styles.balanceLabel}>Total Balance</Text>
+              <Text style={styles.balanceLabel}>{MONEY_BALANCE_LABEL}</Text>
             </View>
           </View>
           
           <View style={styles.balanceAmountContainer}>
-            <Text style={styles.balanceCurrency}>₹</Text>
+            <Text style={styles.balanceCurrency}>{MONEY_SYMBOL}</Text>
             <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(2)}</Text>
           </View>
-          
-          <Text style={styles.balanceUsd}>Your digital money balance</Text>
+
+          <Text style={styles.balanceUsd}>Pilot credits only</Text>
         </LinearGradient>
       </Animated.View>
 
@@ -388,7 +393,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={[styles.actionIconContainer, { backgroundColor: COLORS.primary + '20' }]}>
             <Ionicons name="send-outline" size={23} color={COLORS.primary} />
           </View>
-          <Text style={styles.actionTitle}>Send Money</Text>
+          <Text style={styles.actionTitle}>Send Credits</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -400,7 +405,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <View style={[styles.actionIconContainer, { backgroundColor: COLORS.success + '20' }]}>
             <Ionicons name="add-circle-outline" size={24} color={COLORS.success} />
           </View>
-          <Text style={styles.actionTitle}>Add Money</Text>
+          <Text style={styles.actionTitle}>Claim Credits</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -463,9 +468,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <View style={styles.infoBanner}>
         <Ionicons name="information-circle-outline" size={20} color={COLORS.infoDark} style={styles.infoBannerIcon} />
         <View style={styles.infoBannerContent}>
-          <Text style={styles.infoBannerTitle}>Development Mode</Text>
+          <Text style={styles.infoBannerTitle}>{PILOT_NOTICE_TITLE}</Text>
           <Text style={styles.infoBannerText}>
-            Test environment • Free to use • No real money
+            {PILOT_NOTICE_TEXT}
           </Text>
         </View>
       </View>
@@ -542,7 +547,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
                   onPress={startAddMoney}
                 >
-                  <Text style={styles.addMoneyPrimaryText}>Add Money</Text>
+                  <Text style={styles.addMoneyPrimaryText}>Claim</Text>
                 </TouchableOpacity>
               </View>
             )}

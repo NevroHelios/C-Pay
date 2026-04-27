@@ -19,6 +19,8 @@ import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAdd
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { Button, LoadingSpinner } from '../components';
 import { AlertManager } from '../utils/alert';
+import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount } from '../utils/currency';
+import { PILOT_TESTNET_TEXT } from '../utils/pilot';
 
 interface SendMoneyScreenProps {
   navigation: any;
@@ -31,7 +33,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const [recipientInput, setRecipientInput] = useState<string>(''); // Store original input (C-Pay ID or wallet)
   const [recipientName, setRecipientName] = useState<string>('');
   const [recipientCPayId, setRecipientCPayId] = useState<string>('');
-  const [amount, setAmount] = useState<string>(''); // User enters INR (1:1 with tokens)
+  const [amount, setAmount] = useState<string>(''); // User enters pilot credit amount.
   const [note, setNote] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState<string>('0');
@@ -56,7 +58,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName(route.params.recipientName);
     }
     if (route?.params?.amount && parseFloat(route.params.amount) > 0) {
-      // Amount is already in INR (1:1 with tokens)
+      // Amount is already in the user-visible credit unit.
       setAmount(parseFloat(route.params.amount).toFixed(2));
       setHasPresetAmount(true);
     }
@@ -229,7 +231,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     }
 
     if (recipientAddress.trim() === walletAddress) {
-      AlertManager.alert('Invalid Recipient', 'You cannot send money to yourself');
+      AlertManager.alert('Invalid Recipient', 'You cannot send pilot credits to yourself');
       return false;
     }
 
@@ -241,7 +243,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
     const balanceNum = parseFloat(balance);
     if (amountNum > balanceNum) {
-      AlertManager.alert('Insufficient Balance', `You only have ₹${parseFloat(balance).toFixed(2)}`);
+      AlertManager.alert('Insufficient Balance', `You only have ${formatMoneyAmount(parseFloat(balance))}`);
       return false;
     }
 
@@ -255,7 +257,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
     AlertManager.alert(
       'Confirm Payment',
-      `Send ₹${parseFloat(amount).toFixed(2)} to\n${displayId}${note ? `\n\nNote: ${note}` : ''}`,
+      `Send ${formatMoneyAmount(parseFloat(amount))} to\n${displayId}${note ? `\n\nNote: ${note}` : ''}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -277,8 +279,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
               const wallet = await getAuthenticatedWallet(
                 'Confirm Payment',
-                'Enter your 6-digit PIN to send money',
-                'Unlock wallet to send money'
+                'Enter your 6-digit PIN to send pilot credits',
+                'Unlock wallet to send pilot credits'
               );
               if (!wallet) {
                 paymentInProgress.current = false;
@@ -362,14 +364,14 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
             } catch (error: any) {
               paymentInProgress.current = false;
               if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
-              console.error('Send money error:', error);
+              console.error('Send pilot credits error:', error);
               
               // Map error to user-friendly message
               let failureReason = 'Payment failed. Please try again.';
               let errorMessage = 'Transaction Failed';
               
               if (error.message?.includes('timeout') || error.message?.includes('slow')) {
-                failureReason = 'Transaction timed out after 1 minute. Your money is safe - no amount was deducted. The network is experiencing delays. Please try again.';
+                failureReason = 'Transaction timed out after 1 minute. Your pilot credits are safe - no amount was deducted. The network is experiencing delays. Please try again.';
                 errorMessage = 'Network Timeout';
               } else if (error.message?.includes('insufficient funds') || error.message?.includes('Insufficient')) {
                 failureReason = 'You don\'t have enough balance to complete this transaction.';
@@ -381,10 +383,10 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 failureReason = 'Unable to connect to the Stellar network. Check your internet connection.';
                 errorMessage = 'Network Connection Failed';
               } else if (error.message?.includes('temporarily unavailable')) {
-                failureReason = 'Payment service is temporarily unavailable. Your money is safe. Please try again in a few moments.';
+                failureReason = 'Payment service is temporarily unavailable. Your pilot credits are safe. Please try again in a few moments.';
                 errorMessage = 'Service Unavailable';
               } else {
-                failureReason = error.message + ' Your money is safe - no amount was deducted.';
+                failureReason = error.message + ' Your pilot credits are safe - no amount was deducted.';
               }
               
               // Navigate to Failure screen
@@ -461,16 +463,16 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
           >
             <Text style={styles.backButtonText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Send Money</Text>
+          <Text style={styles.headerTitle}>Send Pilot Credits</Text>
           <View style={styles.placeholder} />
         </View>
 
         {/* Balance Card - Hidden when scanned from other places */}
         {!hideBalance && (
           <View style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceLabel}>Available Credits</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceCurrency}>₹</Text>
+              <Text style={styles.balanceCurrency}>{MONEY_SYMBOL}</Text>
               <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(2)}</Text>
             </View>
           </View>
@@ -543,7 +545,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         <View style={styles.inputSection}>
           <Text style={styles.inputLabel}>Amount</Text>
           <View style={styles.amountInputContainer}>
-            <Text style={styles.currencySymbol}>₹</Text>
+            <Text style={styles.currencySymbol}>{MONEY_SYMBOL}</Text>
             <TextInput
               style={[styles.amountInput, hasPresetAmount && styles.inputDisabled]}
               placeholder="0.00"
@@ -553,7 +555,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               keyboardType="decimal-pad"
               editable={!hasPresetAmount}
             />
-            <Text style={styles.currencyLabel}>INR</Text>
+            <Text style={styles.currencyLabel}>{MONEY_UNIT_LABEL}</Text>
           </View>
           {/* Quick Amount Buttons - Hide when amount is preset from QR */}
           {!hasPresetAmount && (
@@ -564,7 +566,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                   style={styles.quickAmountButton}
                   onPress={() => setAmount(quickAmount)}
                 >
-                  <Text style={styles.quickAmountText}>₹{quickAmount}</Text>
+                  <Text style={styles.quickAmountText}>{MONEY_SYMBOL} {quickAmount}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -597,8 +599,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
           <View style={styles.sendButtonContent}>
             <Ionicons name="send-outline" size={22} color={COLORS.textInverse} style={styles.sendButtonEmoji} />
             <Text style={styles.sendButtonText}>
-              {amount && parseFloat(amount) > 0 
-                ? `Send ₹${parseFloat(amount).toFixed(2)}` 
+              {amount && parseFloat(amount) > 0
+                ? `Send ${formatMoneyAmount(parseFloat(amount))}`
                 : 'Enter Amount to Send'}
             </Text>
           </View>
@@ -608,7 +610,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         <View style={styles.infoCard}>
           <Ionicons name="information-circle-outline" size={20} color={COLORS.info} style={styles.infoIcon} />
           <Text style={styles.infoText}>
-            Payments are processed on Stellar and typically confirm in 5-10 seconds.
+            {PILOT_TESTNET_TEXT} Payments typically confirm in 5-10 seconds.
           </Text>
         </View>
       </ScrollView>

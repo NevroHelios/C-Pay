@@ -1,6 +1,6 @@
 # C-Pay Mobile App
 
-Expo React Native app for INR-first payments on Stellar.
+Expo React Native app for closed-pilot C-Pay credits on Stellar testnet.
 
 ## Setup
 
@@ -17,6 +17,10 @@ Set these values after completing `Blockchain/README.md`:
 - `EXPO_PUBLIC_STELLAR_RELAYER_URL=<relayer base URL>`
 - `EXPO_PUBLIC_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org`
 - `EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015`
+- `EXPO_PUBLIC_PILOT_MODE=true`
+- `EXPO_PUBLIC_PILOT_CREDIT_UNIT=credits`
+
+Keep `EXPO_PUBLIC_DEV_MODE=false` for production/internal pilot builds that should use real OTP. `EXPO_PUBLIC_PILOT_MODE=true` is separate and only controls closed-pilot/test-credit UX.
 
 ## Wallet Security
 

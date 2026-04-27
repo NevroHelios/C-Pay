@@ -19,6 +19,12 @@ import { hasWallet } from '../services/wallet';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
+import {
+  PILOT_ACCESS_REQUIRED,
+  PILOT_NOTICE_TEXT,
+  PILOT_NOTICE_TITLE,
+  isPilotAccessCodeValid,
+} from '../utils/pilot';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const { width, height } = Dimensions.get('window');
@@ -41,6 +47,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState('');
+  const [pilotAccessCode, setPilotAccessCode] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
@@ -107,6 +114,14 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   const handleSendOTP = async () => {
     if (!phoneNumber || phoneNumber.length < 10) {
       AlertManager.alert('Error', 'Please enter a valid phone number');
+      return;
+    }
+
+    if (PILOT_ACCESS_REQUIRED && !isPilotAccessCodeValid(pilotAccessCode)) {
+      AlertManager.alert(
+        'Pilot Access Required',
+        'Enter the invite code shared for this closed pilot.'
+      );
       return;
     }
 
@@ -348,6 +363,26 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
         {/* Input Section */}
         {step === 'phone' ? (
           <View style={styles.inputSection}>
+            <View style={styles.pilotNotice}>
+              <Ionicons name="flask-outline" size={18} color={COLORS.info} />
+              <View style={styles.pilotNoticeContent}>
+                <Text style={styles.pilotNoticeTitle}>{PILOT_NOTICE_TITLE}</Text>
+                <Text style={styles.pilotNoticeText}>{PILOT_NOTICE_TEXT}</Text>
+              </View>
+            </View>
+
+            {PILOT_ACCESS_REQUIRED && (
+              <TextInput
+                style={styles.pilotCodeInput}
+                value={pilotAccessCode}
+                onChangeText={setPilotAccessCode}
+                placeholder="Pilot invite code"
+                placeholderTextColor={COLORS.textTertiary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            )}
+
             <View style={styles.phoneInputContainer}>
               <Text style={styles.countryCode}>+91</Text>
               <TextInput
@@ -594,6 +629,41 @@ const styles = StyleSheet.create({
   },
   inputSection: {
     marginBottom: SPACING.xl,
+  },
+  pilotNotice: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.infoBg,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.info,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.md,
+  },
+  pilotNoticeContent: {
+    flex: 1,
+  },
+  pilotNoticeTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    color: COLORS.info,
+    marginBottom: 2,
+  },
+  pilotNoticeText: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    lineHeight: 17,
+  },
+  pilotCodeInput: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    fontSize: FONT_SIZES.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
   },
   phoneInputContainer: {
     flexDirection: 'row',

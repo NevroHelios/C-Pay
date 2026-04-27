@@ -433,7 +433,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         // Capture QR code as image
         const uri = await qrCodeRef.current.capture();
         
-        const message = 'Scan this QR code to send me money on C-Pay.';
+        const message = 'Scan this QR code to send me pilot credits on C-Pay.';
         
         // Use expo-sharing for reliable image sharing on both platforms
         if (await Sharing.isAvailableAsync()) {
@@ -619,12 +619,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   
                   {/* Footer */}
                   <View style={styles.shareCardFooter}>
-                    <Text style={styles.shareCardFooterText}>Scan to send money</Text>
+                    <Text style={styles.shareCardFooterText}>Scan to send pilot credits</Text>
                   </View>
                 </View>
               </ViewShot>
               <Text style={styles.qrCodeDescription}>
-                Let others scan this QR code to send you money
+                Let others scan this QR code to send you pilot credits
               </Text>
               
               {/* Action Buttons */}
@@ -849,7 +849,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           
           <View style={styles.settingDivider} />
           
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.0\n\nC-Pay is a modern INR-first digital payment app built on Stellar.\n\nNetwork: Stellar Testnet\n\n© 2026 C-Pay')}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.0\n\nC-Pay is a closed-pilot payment app using test credits on Stellar testnet.\n\nPilot credits are not real money and have no cash value.\n\n© 2026 C-Pay')}>
             <View style={styles.settingInfo}>
               <Ionicons name="information-circle-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
               <View>
@@ -875,7 +875,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>C-Pay v1.0.0</Text>
-        <Text style={styles.footerSubtext}>Built for fast INR-first payments</Text>
+        <Text style={styles.footerSubtext}>Built for closed-pilot test payments</Text>
         <Text style={styles.footerSubtext}>Stellar Testnet</Text>
       </View>
     </ScrollView>
