@@ -538,7 +538,10 @@ mod test {
     extern crate std;
 
     use super::*;
-    use soroban_sdk::{testutils::Address as _, BytesN, Env};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger as _},
+        BytesN, Env,
+    };
 
     fn id(env: &Env, byte: u8) -> BytesN<32> {
         BytesN::from_array(env, &[byte; 32])
@@ -804,6 +807,69 @@ mod test {
         assert_eq!(
             client.try_confirm_intent(&intent_id, &id(&env, 26)),
             Err(Ok(Error::InvalidStatus))
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_amount_and_unknown_merchant() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, _merchant, payer) = setup(&env);
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &id(&env, 27),
+                &id(&env, 28),
+                &0_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 29),
+            ),
+            Err(Ok(Error::InvalidAmount))
+        );
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &id(&env, 30),
+                &id(&env, 31),
+                &50_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 32),
+            ),
+            Err(Ok(Error::MerchantMissing))
+        );
+    }
+
+    #[test]
+    fn rejects_confirmation_after_intent_expiry() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
+
+        let merchant_id = id(&env, 33);
+        let intent_id = id(&env, 34);
+        let expires_at = env.ledger().timestamp() + 600;
+
+        client
+            .try_register_merchant(&merchant_id, &merchant)
+            .unwrap()
+            .unwrap();
+        client
+            .try_create_intent(
+                &payer,
+                &merchant_id,
+                &intent_id,
+                &50_i128,
+                &expires_at,
+                &id(&env, 35),
+            )
+            .unwrap()
+            .unwrap();
+
+        env.ledger().set_timestamp(expires_at);
+
+        assert_eq!(
+            client.try_confirm_intent(&intent_id, &id(&env, 36)),
+            Err(Ok(Error::IntentExpired))
         );
     }
 }
