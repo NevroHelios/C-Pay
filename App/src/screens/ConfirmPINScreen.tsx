@@ -98,7 +98,8 @@ export const ConfirmPINScreen: React.FC<ConfirmPINScreenProps> = ({
       const walletAddress = await createWallet(originalPin);
 
       // Save wallet address locally for profile and optional biometric setup.
-      const cpayId = generateCPayId(phoneNumber || '', walletAddress);
+      const verifiedEmail = await AsyncStorage.getItem('user_email');
+      const cpayId = generateCPayId(verifiedEmail || phoneNumber || '', walletAddress);
       await Promise.all([
         AsyncStorage.setItem('wallet_address', walletAddress),
         AsyncStorage.setItem('cpay_id', cpayId),

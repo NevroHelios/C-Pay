@@ -111,6 +111,23 @@ CREATE TABLE IF NOT EXISTS relayer_idempotency_keys (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS wallet_backups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    wallet_address TEXT NOT NULL,
+    backup_version INTEGER NOT NULL DEFAULT 1,
+    cipher TEXT NOT NULL DEFAULT 'xchacha20-poly1305',
+    kdf TEXT NOT NULL DEFAULT 'pbkdf2-sha256',
+    kdf_iterations INTEGER NOT NULL,
+    salt TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    ciphertext TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(auth_user_id),
+    UNIQUE(wallet_address)
+);
+
 -- Existing-project compatibility. Safe for empty/new projects and useful if
 -- the table already exists from an older local setup.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
@@ -125,10 +142,22 @@ ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
 
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS owner_name TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS phone_number TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_address TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_registration_number TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS total_transactions INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS total_revenue NUMERIC(20, 7) NOT NULL DEFAULT 0;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR';
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpinr_asset_issuer TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id TEXT UNIQUE;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_type TEXT NOT NULL DEFAULT 'personal';
@@ -158,6 +187,8 @@ CREATE INDEX IF NOT EXISTS idx_merchant_qr_codes_merchant_id ON merchant_qr_code
 CREATE INDEX IF NOT EXISTS idx_add_money_claims_wallet_address ON add_money_claims(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_add_money_claims_claimed_at ON add_money_claims(claimed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_relayer_idempotency_expires_at ON relayer_idempotency_keys(expires_at);
+CREATE INDEX IF NOT EXISTS idx_wallet_backups_auth_user_id ON wallet_backups(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_backups_wallet_address ON wallet_backups(wallet_address);
 
 -- Backfill ownership for existing rows before stricter RLS takes effect.
 -- Supabase phone auth stores verified numbers in auth.users.phone.
@@ -196,6 +227,7 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE merchant_qr_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE add_money_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE relayer_idempotency_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wallet_backups ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION set_row_auth_user_id()
 RETURNS TRIGGER AS $$
@@ -285,17 +317,79 @@ RETURNS TABLE (
   WHERE m.wallet_address = p_wallet_address AND m.is_active = TRUE;
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION get_own_merchant_by_wallet(p_wallet_address TEXT)
+RETURNS TABLE (
+  id UUID,
+  auth_user_id UUID,
+  business_name TEXT,
+  wallet_address TEXT,
+  cpay_id TEXT,
+  owner_name TEXT,
+  email TEXT,
+  phone_number TEXT,
+  business_address TEXT,
+  business_registration_number TEXT,
+  description TEXT,
+  category TEXT,
+  logo_url TEXT,
+  is_active BOOLEAN,
+  total_transactions INTEGER,
+  total_revenue NUMERIC,
+  stellar_network TEXT,
+  cpinr_asset_code TEXT,
+  cpinr_asset_issuer TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+) AS $$
+  SELECT
+    m.id,
+    m.auth_user_id,
+    m.business_name,
+    m.wallet_address,
+    m.cpay_id,
+    m.owner_name,
+    m.email,
+    m.phone_number,
+    m.business_address,
+    m.business_registration_number,
+    m.description,
+    m.category,
+    m.logo_url,
+    m.is_active,
+    m.total_transactions,
+    m.total_revenue,
+    m.stellar_network,
+    m.cpinr_asset_code,
+    m.cpinr_asset_issuer,
+    m.created_at,
+    m.updated_at
+  FROM merchants m
+  WHERE m.wallet_address = p_wallet_address
+    AND (
+      m.auth_user_id = auth.uid()
+      OR EXISTS (
+        SELECT 1
+        FROM users u
+        WHERE u.auth_user_id = auth.uid()
+          AND u.wallet_address = m.wallet_address
+      )
+    )
+  LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
 REVOKE ALL ON FUNCTION current_wallet_address() FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_public_wallet_profile(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION resolve_cpay_id(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_public_merchant_by_id(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_public_merchant_by_address(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION get_own_merchant_by_wallet(TEXT) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION get_public_wallet_profile(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION resolve_cpay_id(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_public_merchant_by_id(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_public_merchant_by_address(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION current_wallet_address() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_own_merchant_by_wallet(TEXT) TO authenticated;
 
 DROP POLICY IF EXISTS "users_select" ON users;
 DROP POLICY IF EXISTS "users_select_own" ON users;
@@ -409,6 +503,29 @@ DROP POLICY IF EXISTS "relayer_idempotency_service_select" ON relayer_idempotenc
 REVOKE ALL ON add_money_claims FROM anon, authenticated;
 REVOKE ALL ON relayer_idempotency_keys FROM anon, authenticated;
 
+DROP POLICY IF EXISTS "wallet_backups_select_own" ON wallet_backups;
+CREATE POLICY "wallet_backups_select_own" ON wallet_backups
+FOR SELECT
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "wallet_backups_insert_own" ON wallet_backups;
+CREATE POLICY "wallet_backups_insert_own" ON wallet_backups
+FOR INSERT
+WITH CHECK (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "wallet_backups_update_own" ON wallet_backups;
+CREATE POLICY "wallet_backups_update_own" ON wallet_backups
+FOR UPDATE
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+WITH CHECK (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "wallet_backups_delete_own" ON wallet_backups;
+CREATE POLICY "wallet_backups_delete_own" ON wallet_backups
+FOR DELETE
+USING (auth.uid() IS NOT NULL AND auth_user_id = auth.uid());
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON wallet_backups TO authenticated;
+
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -435,6 +552,11 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 DROP TRIGGER IF EXISTS update_merchant_qr_codes_updated_at ON merchant_qr_codes;
 CREATE TRIGGER update_merchant_qr_codes_updated_at
 BEFORE UPDATE ON merchant_qr_codes
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_wallet_backups_updated_at ON wallet_backups;
+CREATE TRIGGER update_wallet_backups_updated_at
+BEFORE UPDATE ON wallet_backups
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE OR REPLACE FUNCTION refresh_merchant_totals(p_merchant_id UUID)

@@ -52,6 +52,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
             value={merchantName}
             onChangeText={setMerchantName}
             placeholder="Enter merchant name"
+            placeholderTextColor={COLORS.textSecondary}
           />
         </View>
 
@@ -62,6 +63,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
             value={amount}
             onChangeText={setAmount}
             placeholder="Enter amount"
+            placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
           />
         </View>
@@ -73,6 +75,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
             value={merchantAddress}
             onChangeText={setMerchantAddress}
             placeholder="Enter Stellar account"
+            placeholderTextColor={COLORS.textSecondary}
           />
         </View>
 
@@ -83,6 +86,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
             value={note}
             onChangeText={setNote}
             placeholder="Enter note"
+            placeholderTextColor={COLORS.textSecondary}
           />
         </View>
 

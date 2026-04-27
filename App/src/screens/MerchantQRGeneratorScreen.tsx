@@ -43,6 +43,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
   const [generatedQR, setGeneratedQR] = useState<boolean>(false);
   const [qrValue, setQRValue] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [merchantId, setMerchantId] = useState<string | null>(null);
   const qrRef = useRef<any>(null);
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -56,6 +57,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
       if (walletAddress) {
         const profile = await getMerchantProfile(walletAddress);
         if (profile) {
+          setMerchantId(profile.id || null);
           setBusinessName(profile.business_name);
           if (profile.logo_url && profile.logo_url !== 'default-merchant-logo') {
             setLogoUrl(profile.logo_url);
@@ -86,16 +88,25 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
     try {
       setLoading(true);
 
-      const merchantId = await AsyncStorage.getItem('merchant_id');
+      let resolvedMerchantId = merchantId || await AsyncStorage.getItem('merchant_id');
       const walletAddress = await AsyncStorage.getItem('wallet_address');
 
-      if (!merchantId || !walletAddress) {
+      if (!resolvedMerchantId && walletAddress) {
+        const profile = await getMerchantProfile(walletAddress);
+        resolvedMerchantId = profile?.id || null;
+        if (profile) {
+          setMerchantId(profile.id || null);
+          setBusinessName(profile.business_name);
+        }
+      }
+
+      if (!resolvedMerchantId || !walletAddress) {
         AlertManager.alert('Error', 'Merchant information not found');
         return;
       }
 
       const qrData = generatePaymentQRWithId(
-        merchantId,
+        resolvedMerchantId,
         assetAmount ? assetAmount.toFixed(2) : '0',
         businessName,
         walletAddress,

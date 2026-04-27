@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { sendLoginEmailOTP, verifyLoginEmailOTP, getRemainingAttempts } from '../services/auth';
 import { hasWallet } from '../services/wallet';
+import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import {
@@ -39,6 +40,14 @@ const OTP_BOX_SIZE = Math.min(
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_VERIFIED_KEY = 'email_verified';
 const USER_EMAIL_KEY = 'user_email';
+
+type ExistingUserProfile = {
+  wallet_address: string;
+  display_name?: string | null;
+  cpay_id?: string | null;
+  profile_photo_url?: string | null;
+  phone_number?: string | null;
+};
 
 interface PhoneVerificationScreenProps {
   navigation: any;
@@ -111,6 +120,28 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
   const loadRemainingAttempts = async () => {
     const { remaining } = await getRemainingAttempts();
     setRemainingAttempts(remaining);
+  };
+
+  const loadExistingUserProfile = async (): Promise<ExistingUserProfile | null> => {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+
+    if (!userId) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('wallet_address, display_name, cpay_id, profile_photo_url, phone_number')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Existing profile lookup failed:', error);
+      return null;
+    }
+
+    return data as ExistingUserProfile | null;
   };
 
   const handleSendOTP = async () => {
@@ -199,6 +230,22 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
       if (walletExists) {
         navigation.replace('Login');
       } else {
+        const existingProfile = await loadExistingUserProfile();
+
+        if (existingProfile?.wallet_address) {
+          navigation.replace('RestoreWallet', {
+            verifiedEmail,
+            walletAddress: existingProfile.wallet_address,
+            displayName: existingProfile.display_name || null,
+            cpayId: existingProfile.cpay_id || null,
+            profilePhotoUrl: existingProfile.profile_photo_url || null,
+            phoneNumber: existingProfile.phone_number || null,
+          });
+          setLoading(false);
+          verifyingRef.current = false;
+          return;
+        }
+
         navigation.replace('CreatePIN', {
           phoneNumber: '',
         });
@@ -291,6 +338,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
                 value={emailAddress}
                 onChangeText={setEmailAddress}
                 placeholder="Enter email address"
+                placeholderTextColor={COLORS.textSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}

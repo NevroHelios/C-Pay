@@ -566,7 +566,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="9876543210@cpayk8f3qz"
+                placeholder="name@cpayk8f3qz"
                 placeholderTextColor={COLORS.textTertiary}
                 value={recipientInput}
                 onChangeText={handleAddressChange}

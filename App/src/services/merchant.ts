@@ -39,6 +39,17 @@ const merchantByAddressCache = new Map<string, {
 }>();
 const merchantByAddressInFlight = new Map<string, Promise<Merchant | null>>();
 
+async function cacheMerchantLocalState(merchant: Merchant): Promise<void> {
+  if (!merchant.id || merchant.is_active === false) {
+    return;
+  }
+
+  await AsyncStorage.multiSet([
+    ['is_merchant', 'true'],
+    ['merchant_id', merchant.id],
+  ]);
+}
+
 export interface MerchantQRCode {
   id?: string;
   merchant_id?: string;
@@ -191,8 +202,7 @@ export async function registerAsMerchant(merchant: Merchant): Promise<{
     }
 
     // Cache merchant status locally
-    await AsyncStorage.setItem('is_merchant', 'true');
-    await AsyncStorage.setItem('merchant_id', data.id);
+    await cacheMerchantLocalState(data);
 
     // Emit event for real-time UI updates
     merchantEvents.emit('merchantRegistered', data);
@@ -221,14 +231,33 @@ export async function getMerchantProfile(
       .from('merchants')
       .select('*')
       .eq('wallet_address', walletAddress)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error getting merchant profile:', error);
+    }
+
+    if (data) {
+      await cacheMerchantLocalState(data);
+      return data;
+    }
+
+    const { data: fallbackData, error: fallbackError } = await supabase.rpc('get_own_merchant_by_wallet', {
+      p_wallet_address: walletAddress,
+    });
+
+    if (fallbackError) {
+      console.error('Error getting own merchant profile:', fallbackError);
       return null;
     }
 
-    return data;
+    const fallbackMerchant = Array.isArray(fallbackData) ? fallbackData[0] : null;
+    if (fallbackMerchant) {
+      await cacheMerchantLocalState(fallbackMerchant);
+      return fallbackMerchant;
+    }
+
+    return null;
   } catch (error) {
     console.error('Error getting merchant profile:', error);
     return null;

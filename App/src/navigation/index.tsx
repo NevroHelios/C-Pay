@@ -12,7 +12,9 @@ import { ConfirmPINScreen } from '../screens/ConfirmPINScreen';
 import { ChangePINScreen } from '../screens/ChangePINScreen';
 import { ForgotPINScreen } from '../screens/ForgotPINScreen';
 import { BiometricSetupScreen } from '../screens/BiometricSetupScreen';
+import { CloudBackupSetupScreen } from '../screens/CloudBackupSetupScreen';
 import { LoginScreen } from '../screens/LoginScreen';
+import { RestoreWalletScreen } from '../screens/RestoreWalletScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ScanScreen } from '../screens/ScanScreen';
@@ -41,7 +43,16 @@ type RootStackParamList = {
   ProfileSetup: { walletAddress: string; phoneNumber: string };
   ChangePIN: undefined;
   ForgotPIN: undefined;
+  CloudBackupSetup: { fromSettings?: boolean } | undefined;
   BiometricSetup: undefined;
+  RestoreWallet: {
+    verifiedEmail?: string;
+    walletAddress: string;
+    displayName?: string | null;
+    cpayId?: string | null;
+    profilePhotoUrl?: string | null;
+    phoneNumber?: string | null;
+  };
   Login: undefined;
   MainTabs: undefined;
   Scan: { returnTo?: string };
@@ -164,7 +175,9 @@ export const Navigation = () => {
             headerTitle: 'Reset PIN',
           }}
         />
+        <Stack.Screen name="CloudBackupSetup" component={CloudBackupSetupScreen} />
         <Stack.Screen name="BiometricSetup" component={BiometricSetupScreen} />
+        <Stack.Screen name="RestoreWallet" component={RestoreWalletScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="Scan" component={ScanScreen} />

@@ -38,6 +38,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const biometricIconName = biometricType.includes('Face') ? 'scan-outline' : 'finger-print-outline';
 
+  const navigateAfterWalletUnlock = async () => {
+    const cloudBackupRequired = await AsyncStorage.getItem('cloud_backup_required');
+    navigation.replace(cloudBackupRequired === 'true' ? 'CloudBackupSetup' : 'MainTabs');
+  };
+
   useEffect(() => {
     checkAndTriggerBiometric();
   }, []);
@@ -69,7 +74,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const expectedWallet = await AsyncStorage.getItem('wallet_address');
 
       if (wallet && (!expectedWallet || wallet.address === expectedWallet)) {
-        navigation.replace('MainTabs');
+        await navigateAfterWalletUnlock();
       } else {
         AlertManager.alert('Authentication Failed', 'Please use your PIN to unlock this wallet.');
       }
@@ -105,7 +110,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       
       if (isValid) {
         cachePinForSession(pinToVerify);
-        navigation.replace('MainTabs');
+        await navigateAfterWalletUnlock();
       } else {
         setError('Incorrect PIN');
         setPin('');

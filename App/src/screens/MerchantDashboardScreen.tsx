@@ -84,13 +84,14 @@ export const MerchantDashboardScreen: React.FC<
 
       // Load merchant profile
       const profile = await getMerchantProfile(walletAddress);
+      let merchantId = await AsyncStorage.getItem('merchant_id');
       if (profile) {
         setBusinessName(profile.business_name);
         setLogoUrl(profile.logo_url && profile.logo_url !== 'default-merchant-logo' ? profile.logo_url : null);
+        merchantId = profile.id || merchantId;
       }
 
       // Load analytics
-      const merchantId = await AsyncStorage.getItem('merchant_id');
       if (merchantId) {
         const analytics = await getMerchantAnalytics(merchantId);
         setTotalRevenue(analytics.totalRevenue);

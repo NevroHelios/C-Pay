@@ -176,13 +176,15 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       const emailToSave = await AsyncStorage.getItem('user_email');
       
       // Generate a public C-Pay ID for display and receiving payments.
-      const cpayId = generateCPayId(phoneNumber, walletAddress);
+      const cpayId = generateCPayId(emailToSave || phoneToSave || phoneNumber || '', walletAddress);
 
       // Save locally
       const localWrites = [
         AsyncStorage.setItem('display_name', trimmedName),
         AsyncStorage.setItem('cpay_id', cpayId),
         AsyncStorage.setItem('profile_complete', 'true'),
+        AsyncStorage.setItem('cloud_backup_required', 'true'),
+        AsyncStorage.setItem('cloud_backup_complete', 'false'),
       ];
 
       if (profilePhoto) {
@@ -198,8 +200,8 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       // Complete profile upload/cloud save here so the next screen opens cleanly.
       await completeProfileSetup(trimmedName, phoneToSave, emailToSave, cpayId, profilePhoto);
 
-      // Biometric setup is optional and handled on the dedicated next screen.
-      navigation.replace('BiometricSetup');
+      // Cloud backup protects the wallet before optional biometric setup.
+      navigation.replace('CloudBackupSetup');
     } catch (error) {
       console.error('Profile setup error:', error);
       completingRef.current = false;
@@ -308,7 +310,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
 
           {loading && (
             <Text style={styles.loadingText}>
-              Saving your profile before biometric setup...
+              Saving your profile before cloud backup...
             </Text>
           )}
 

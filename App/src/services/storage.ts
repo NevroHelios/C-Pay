@@ -77,8 +77,8 @@ async function getOrCreateUser(walletAddress: string, phoneNumber?: string, disp
     }
 
     // Create new user
-    const cpayId = walletAddress ? generateCPayId(phoneNumber || '', walletAddress) : null;
     const verifiedEmail = await AsyncStorage.getItem('user_email');
+    const cpayId = walletAddress ? generateCPayId(verifiedEmail || phoneNumber || '', walletAddress) : null;
 
     const { data: newUser, error: insertError } = await supabase
       .from('users')

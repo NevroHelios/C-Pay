@@ -50,6 +50,9 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096",
         "EXPO_PUBLIC_SUPABASE_URL": "https://dilsljhgrcxvevzzagrg.supabase.co",

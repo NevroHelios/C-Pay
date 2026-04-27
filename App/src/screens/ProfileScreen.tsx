@@ -579,16 +579,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <View style={styles.qrCodeContent}>
               <ViewShot ref={qrCodeRef} options={{ format: 'png', quality: 1.0 }}>
                 <View style={styles.shareableQRCard}>
-                  {/* Header with Logo */}
-                  <View style={styles.shareCardHeader}>
-                    <Image 
-                      source={require('../../assets/cpay_logo.png')} 
-                      style={styles.shareCardLogo}
-                      resizeMode="contain"
-                    />
-                    <Text style={styles.shareCardTitle}>C-Pay</Text>
-                  </View>
-                  
                   {/* Profile Section */}
                   <View style={styles.shareCardProfile}>
                     <Image 
@@ -747,6 +737,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <View>
                 <Text style={styles.settingLabel}>Wallet Address</Text>
                 <Text style={styles.settingDescription}>Show public Stellar address</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+
+          <View style={styles.settingDivider} />
+
+          <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('CloudBackupSetup', { fromSettings: true })}>
+            <View style={styles.settingInfo}>
+              <Ionicons name="cloud-done-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={styles.settingLabel}>Cloud Backup</Text>
+                <Text style={styles.settingDescription}>Update encrypted recovery backup</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
@@ -1188,21 +1191,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
     width: 320,
-  },
-  shareCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  shareCardLogo: {
-    width: 40,
-    height: 40,
-    marginRight: SPACING.sm,
-  },
-  shareCardTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.primary,
   },
   shareCardProfile: {
     alignItems: 'center',

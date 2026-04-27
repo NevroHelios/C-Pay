@@ -152,9 +152,13 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
         const walletAddress = await recreateWalletFromSecret(recoveredSecret, newPin);
         cachePinForSession(newPin);
 
-        // Get phone number to generate C-Pay ID
-        const phoneNumber = await AsyncStorage.getItem('phone_number');
-        const displayId = phoneNumber ? generateCPayId(phoneNumber, walletAddress) : formatWalletFingerprint(walletAddress);
+        const [email, phoneNumber] = await Promise.all([
+          AsyncStorage.getItem('user_email'),
+          AsyncStorage.getItem('phone_number'),
+        ]);
+        const displayId = email || phoneNumber
+          ? generateCPayId(email || phoneNumber || '', walletAddress)
+          : formatWalletFingerprint(walletAddress);
 
         AlertManager.alert(
           'PIN Reset Successful',

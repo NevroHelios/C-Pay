@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  getMerchantProfile,
   getMerchantTransactions,
   type MerchantTransaction,
 } from '../services/merchant';
@@ -67,9 +68,13 @@ export const MerchantTransactionsScreen: React.FC<MerchantTransactionsScreenProp
 
   const loadTransactions = async () => {
     try {
-      const merchantId = await AsyncStorage.getItem('merchant_id');
+      let merchantId = await AsyncStorage.getItem('merchant_id');
       const wallet = await AsyncStorage.getItem('wallet_address');
       if (wallet) setWalletAddress(wallet);
+      if (!merchantId && wallet) {
+        const profile = await getMerchantProfile(wallet);
+        merchantId = profile?.id || null;
+      }
       if (merchantId) {
         // Fetch more transactions (up to 100)
         const txs = await getMerchantTransactions(merchantId, 100);

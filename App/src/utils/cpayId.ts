@@ -3,8 +3,8 @@ import { supabase } from '../services/supabase';
 
 /**
  * C-Pay ID System - User-friendly identifier instead of wallet addresses
- * Format: phone-or-handle@cpay+walletHash (no country code)
- * Example: 9876543210@cpayk8f3qz
+ * Format: email-handle-or-phone@cpay+walletHash
+ * Example: soumen0818@cpayk8f3qz
  *
  * This is ONLY for UI display. Payment operations still use actual Stellar accounts.
  */
@@ -40,6 +40,18 @@ function isLegacyAddressSuffixId(cpayId: string | null | undefined, walletAddres
   return suffix === walletAddress.trim().toLowerCase().slice(-4);
 }
 
+function isGeneratedCPayIdOutdated(
+  cpayId: string | null | undefined,
+  preferredIdentifier: string,
+  walletAddress: string
+): boolean {
+  if (!cpayId || isLegacyAddressSuffixId(cpayId, walletAddress)) {
+    return true;
+  }
+
+  return Boolean(preferredIdentifier) && cpayId.toLowerCase() !== generateCPayId(preferredIdentifier, walletAddress);
+}
+
 async function getStoredPhoneNumber(): Promise<string | null> {
   return (
     await AsyncStorage.getItem('phone_number') ||
@@ -47,19 +59,38 @@ async function getStoredPhoneNumber(): Promise<string | null> {
   );
 }
 
+async function getStoredEmail(): Promise<string | null> {
+  return AsyncStorage.getItem('user_email');
+}
+
+function normalizeCPayHandle(identifier: string): string {
+  const trimmed = identifier.trim().toLowerCase();
+  const emailLocalPart = trimmed.includes('@') ? trimmed.split('@')[0] : '';
+
+  if (emailLocalPart) {
+    const withoutPlusTag = emailLocalPart.split('+')[0];
+    const emailHandle = withoutPlusTag
+      .replace(/[^a-z0-9._-]/g, '')
+      .replace(/^[._-]+|[._-]+$/g, '')
+      .slice(0, 20);
+
+    return emailHandle.length >= 3 ? emailHandle : 'user';
+  }
+
+  const phone10Digit = trimmed.replace(/\D/g, '').slice(-10);
+  return phone10Digit || 'user';
+}
+
 /**
- * Generate C-Pay ID from phone number and wallet address
- * @param phoneNumber - User's phone number (e.g., "+919876543210")
+ * Generate C-Pay ID from email/phone and wallet address.
+ * @param identifier - User email or phone number.
  * @param walletAddress - Stellar account address
- * @returns C-Pay ID (e.g., "9876543210@cpayk8f3qz") - Only 10 digits, no country code
+ * @returns C-Pay ID (e.g., "soumen0818@cpayk8f3qz")
  */
-export function generateCPayId(phoneNumber: string, walletAddress: string): string {
-  // Extract only last 10 digits from phone number (removes country code like +91)
-  const phone10Digit = phoneNumber.replace(/\D/g, '').slice(-10);
-  const handle = phone10Digit || 'user';
+export function generateCPayId(identifier: string, walletAddress: string): string {
+  const handle = normalizeCPayHandle(identifier);
   const suffix = getWalletFingerprint(walletAddress);
 
-  // Format: phone-or-handle@cpay+walletHash
   return `${handle}@cpay${suffix}`;
 }
 
@@ -75,23 +106,27 @@ export async function getCurrentUserCPayId(): Promise<string | null> {
       return null;
     }
 
-    const localPhone = await getStoredPhoneNumber();
-    const localId = generateCPayId(localPhone || '', walletAddress);
+    const [localEmail, localPhone] = await Promise.all([
+      getStoredEmail(),
+      getStoredPhoneNumber(),
+    ]);
+    const localIdentifier = localEmail || localPhone || '';
+    const localId = generateCPayId(localIdentifier, walletAddress);
 
     // Fetch from database first, then self-heal missing/legacy IDs.
     const { data, error } = await supabase
       .from('users')
-      .select('cpay_id, phone_number')
+      .select('cpay_id, email, phone_number')
       .eq('wallet_address', walletAddress)
       .single();
 
-    if (!error && data?.cpay_id && !isLegacyAddressSuffixId(data.cpay_id, walletAddress)) {
+    const preferredIdentifier = data?.email || localEmail || data?.phone_number || localPhone || '';
+    if (!error && data?.cpay_id && !isGeneratedCPayIdOutdated(data.cpay_id, preferredIdentifier, walletAddress)) {
       await AsyncStorage.setItem('cpay_id', data.cpay_id);
       return data.cpay_id;
     }
 
-    const phone = data?.phone_number || localPhone || '';
-    const generatedId = generateCPayId(phone, walletAddress);
+    const generatedId = generateCPayId(preferredIdentifier, walletAddress);
 
     await AsyncStorage.setItem('cpay_id', generatedId);
 
@@ -109,8 +144,9 @@ export async function getCurrentUserCPayId(): Promise<string | null> {
     if (!walletAddress) {
       return null;
     }
+    const email = await getStoredEmail();
     const phone = await getStoredPhoneNumber();
-    return generateCPayId(phone || '', walletAddress);
+    return generateCPayId(email || phone || '', walletAddress);
   }
 }
 
