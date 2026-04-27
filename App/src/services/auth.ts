@@ -20,7 +20,7 @@ function isRateLimitMessage(message?: string): boolean {
 
 function getSupabaseEmailSendError(email: string, message?: string): string {
   if (isRateLimitMessage(message)) {
-    return `Supabase has temporarily limited verification emails for ${email}. This is not a full app-system block; it is an email-provider limit for this address/project. Please wait before requesting another code.`;
+    return `Supabase temporarily blocked another verification email for ${email} or this project. This is not a full app-system block. Try again after 60 seconds. If this message still appears, wait up to 1 hour before requesting another code.`;
   }
 
   return message || 'Failed to send email OTP';
