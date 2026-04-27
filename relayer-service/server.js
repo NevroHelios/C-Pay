@@ -602,8 +602,8 @@ function loadConfig() {
     assertTrustedSorobanUrl(sorobanRpcUrl);
   }
 
-  if (authRequired && !supabaseJwtSecret) {
-    throw new Error('SUPABASE_JWT_SECRET is required when relayer authentication is enabled');
+  if (authRequired && !supabaseJwtSecret && (!supabaseUrl || !supabaseServiceRoleKey)) {
+    throw new Error('SUPABASE_JWT_SECRET or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY is required when relayer authentication is enabled');
   }
 
   if (cpayContractId && !StellarSdk.StrKey.isValidContract(cpayContractId)) {
@@ -691,13 +691,13 @@ function parseCorsOrigin(value) {
   return origins.length <= 1 ? origins[0] || '*' : origins;
 }
 
-function requireAuthenticatedUser(req, res, next) {
+async function requireAuthenticatedUser(req, res, next) {
   if (!config.authRequired) {
     return next();
   }
 
   try {
-    req.auth = verifySupabaseJwt(req.get('authorization') || '');
+    req.auth = await verifySupabaseJwt(req.get('authorization') || '');
     return next();
   } catch (error) {
     return res.status(401).json({
@@ -707,7 +707,7 @@ function requireAuthenticatedUser(req, res, next) {
   }
 }
 
-function verifySupabaseJwt(authorizationHeader) {
+async function verifySupabaseJwt(authorizationHeader) {
   const match = authorizationHeader.match(/^Bearer\s+(.+)$/i);
   if (!match) {
     throw new Error('Authentication required');
@@ -720,8 +720,8 @@ function verifySupabaseJwt(authorizationHeader) {
   }
 
   const header = JSON.parse(base64UrlDecode(encodedHeader).toString('utf8'));
-  if (header.alg !== 'HS256') {
-    throw new Error('Unsupported authentication token');
+  if (header.alg !== 'HS256' || !config.supabaseJwtSecret) {
+    return verifySupabaseTokenWithAuthApi(token);
   }
 
   const signedPayload = `${encodedHeader}.${encodedPayload}`;
@@ -749,6 +749,31 @@ function verifySupabaseJwt(authorizationHeader) {
   }
 
   return claims;
+}
+
+async function verifySupabaseTokenWithAuthApi(token) {
+  if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
+    throw new Error('Unsupported authentication token. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or set RELAYER_AUTH_REQUIRED=false for MVP testing.');
+  }
+
+  const response = await fetch(`${config.supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+    headers: {
+      apikey: config.supabaseServiceRoleKey,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const user = await response.json().catch(() => ({}));
+
+  if (!response.ok || !user?.id) {
+    throw new Error(user?.msg || user?.message || 'Invalid authentication token');
+  }
+
+  return {
+    sub: user.id,
+    role: 'authenticated',
+    email: user.email,
+    aud: user.aud,
+  };
 }
 
 function base64UrlDecode(value) {

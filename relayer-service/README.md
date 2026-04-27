@@ -26,7 +26,7 @@ npm start
 - `RELAYER_SECRET`: secret seed for the contract relayer account that confirms intents
 - `CONTRACT_ADMIN_SECRET`: secret seed for merchant registration and merchant account rotation
 - `RELAYER_AUTH_REQUIRED`: set to `true` for production/public-network deployments
-- `SUPABASE_JWT_SECRET`: required when relayer auth is enabled
+- `SUPABASE_JWT_SECRET`: required for legacy HS256 Supabase JWT verification when relayer auth is enabled, unless using Supabase Auth API validation with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_URL`: optional; enables persistent Add Money claim logging/cooldowns
 - `SUPABASE_SERVICE_ROLE_KEY`: optional; required with `SUPABASE_URL` for relayer-only writes to `add_money_claims`
 - `ENABLE_ADD_MONEY`: defaults off on `public`; keep off for real-money production
@@ -60,7 +60,7 @@ Keep issuer secrets offline. The relayer needs sponsor and capped distribution s
 
 - Put the relayer behind HTTPS.
 - Restrict `CORS_ORIGIN` to app domains/builds.
-- Enable `RELAYER_AUTH_REQUIRED=true` and set `SUPABASE_JWT_SECRET` so only authenticated app users can spend sponsored relayer resources.
+- Enable `RELAYER_AUTH_REQUIRED=true` and configure Supabase token verification so only authenticated app users can spend sponsored relayer resources.
 - Leave `ENABLE_ADD_MONEY=false` on public network unless you intentionally operate a funded, abuse-resistant promotion flow.
 - Rotate `SPONSOR_SECRET` and `DISTRIBUTION_SECRET` through infrastructure secrets.
 - Rotate `RELAYER_SECRET` with contract `set_relayer` if it is exposed.
