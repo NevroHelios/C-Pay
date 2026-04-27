@@ -104,6 +104,10 @@ export function validatePaymentQR(data: PaymentQRData): {
     return { valid: false, error: 'Invalid merchant account' };
   }
 
+  if (data.network !== `stellar-${network.network}`) {
+    return { valid: false, error: 'Payment QR is for a different Stellar network' };
+  }
+
   if (data.assetCode !== network.assetCode || data.assetIssuer !== network.assetIssuer) {
     return { valid: false, error: 'Unsupported payment asset' };
   }

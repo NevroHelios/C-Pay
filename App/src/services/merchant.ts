@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
 import { generateCPayId } from '../utils/cpayId';
+import { registerContractMerchant } from './blockchain';
 
 // Event emitter for real-time merchant status updates
 export const merchantEvents = new EventEmitter();
@@ -143,6 +144,8 @@ export async function uploadMerchantLogo(
 export async function registerAsMerchant(merchant: Merchant): Promise<{
   success: boolean;
   merchantId?: string;
+  contractSynced?: boolean;
+  contractStatus?: string;
   error?: string;
 }> {
   try {
@@ -166,6 +169,19 @@ export async function registerAsMerchant(merchant: Merchant): Promise<{
       return { success: false, error: error.message };
     }
 
+    let contractSynced = false;
+    let contractStatus = 'not_synced';
+    let contractError = '';
+
+    try {
+      const contractResult = await registerContractMerchant(data.id, merchant.wallet_address);
+      contractSynced = true;
+      contractStatus = contractResult.contractStatus || contractResult.status || 'synced';
+    } catch (contractSyncError: any) {
+      contractError = contractSyncError?.message || 'Contract merchant registration failed';
+      console.warn('Merchant saved but contract sync failed:', contractError);
+    }
+
     // Cache merchant status locally
     await AsyncStorage.setItem('is_merchant', 'true');
     await AsyncStorage.setItem('merchant_id', data.id);
@@ -174,7 +190,13 @@ export async function registerAsMerchant(merchant: Merchant): Promise<{
     merchantEvents.emit('merchantRegistered', data);
     console.log('📡 Emitted merchantRegistered event');
 
-    return { success: true, merchantId: data.id };
+    return {
+      success: true,
+      merchantId: data.id,
+      contractSynced,
+      contractStatus,
+      ...(contractError ? { error: contractError } : {}),
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

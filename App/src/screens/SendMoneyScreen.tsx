@@ -305,7 +305,11 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               const txHash = await transferTokens(
                 wallet,
                 recipientAddress.trim(),
-                amount
+                amount,
+                {
+                  merchantId,
+                  note,
+                }
               );
 
               // Clear timeout on success

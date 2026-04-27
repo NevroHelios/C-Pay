@@ -58,8 +58,14 @@ const BASE_FEE = getEnvVar('EXPO_PUBLIC_STELLAR_BASE_FEE', StellarSdk.BASE_FEE);
 const RELAYER_TIMEOUT_MS = 12000;
 const ACCOUNT_READY_TIMEOUT_MS = 15000;
 const ACCOUNT_READY_POLL_MS = 1500;
+const CONTRACT_INTENT_TIMEOUT_MS = 25000;
 
 export type TransactionStatus = 'pending' | 'success' | 'failed' | 'unknown';
+
+export type PaymentOptions = {
+  merchantId?: string | null;
+  note?: string;
+};
 
 type HorizonBalance = {
   asset_type: string;
@@ -244,15 +250,17 @@ export async function requestAddMoney(wallet: StellarWallet): Promise<string> {
 export async function transferTokens(
   wallet: StellarWallet,
   destination: string,
-  amount: string
+  amount: string,
+  options: PaymentOptions = {}
 ): Promise<string> {
-  return sendPayment(wallet, destination, amount);
+  return sendPayment(wallet, destination, amount, options);
 }
 
 export async function sendPayment(
   wallet: StellarWallet,
   destination: string,
-  amount: string
+  amount: string,
+  options: PaymentOptions = {}
 ): Promise<string> {
   if (!isValidAccountId(destination)) {
     throw new Error('Invalid recipient account');
@@ -260,6 +268,14 @@ export async function sendPayment(
 
   const normalizedAmount = normalizeAmount(amount);
   await ensureAccountReady(wallet);
+  const intentId = options.merchantId
+    ? await createPaymentIntent(wallet, {
+      merchantId: options.merchantId,
+      merchantAddress: destination,
+      amount: normalizedAmount,
+      note: options.note,
+    })
+    : '';
 
   const horizonAccount = await loadHorizonAccount(wallet.publicKey);
   const sourceAccount = new StellarSdk.Account(wallet.publicKey, horizonAccount.sequence);
@@ -282,10 +298,66 @@ export async function sendPayment(
     body: JSON.stringify({
       signedXdr: transaction.toXDR(),
       idempotencyKey: `payment-${wallet.publicKey}-${destination}-${normalizedAmount}-${Date.now()}`,
+      ...(intentId ? { intentId } : {}),
     }),
-  });
+  }, CONTRACT_INTENT_TIMEOUT_MS);
 
   return result.hash;
+}
+
+export async function registerContractMerchant(
+  merchantId: string,
+  walletAddress: string
+): Promise<{
+  status: string;
+  contractStatus?: string;
+  contractMerchantKey?: string;
+  contractTxHash?: string;
+}> {
+  return relayerRequest('/contract/merchants/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      merchantId,
+      walletAddress,
+    }),
+  }, CONTRACT_INTENT_TIMEOUT_MS);
+}
+
+async function createPaymentIntent(
+  wallet: StellarWallet,
+  params: {
+    merchantId: string;
+    merchantAddress: string;
+    amount: string;
+    note?: string;
+  }
+): Promise<string> {
+  const prepared = await relayerRequest<{
+    intentId: string;
+    xdr: string;
+    networkPassphrase: string;
+  }>('/payments/intents/prepare', {
+    method: 'POST',
+    body: JSON.stringify({
+      payer: wallet.publicKey,
+      merchantId: params.merchantId,
+      merchantAddress: params.merchantAddress,
+      amount: params.amount,
+      note: params.note || '',
+    }),
+  }, CONTRACT_INTENT_TIMEOUT_MS);
+
+  const signedXdr = wallet.signXdr(prepared.xdr, prepared.networkPassphrase || NETWORK_PASSPHRASE);
+
+  await relayerRequest('/payments/intents/submit', {
+    method: 'POST',
+    body: JSON.stringify({
+      intentId: prepared.intentId,
+      signedXdr,
+    }),
+  }, CONTRACT_INTENT_TIMEOUT_MS);
+
+  return prepared.intentId;
 }
 
 export async function getTransactionReceipt(txHash: string) {

@@ -266,6 +266,12 @@ export const MerchantRegistrationScreen: React.FC<
       });
 
       if (result.success) {
+        if (result.contractSynced === false) {
+          AlertManager.alert(
+            'Merchant Saved',
+            'Your merchant profile was saved, but contract sync did not complete. Merchant QR payments may fail until the relayer is configured and synced.'
+          );
+        }
         // Replace registration screen with dashboard
         // So back button from dashboard goes to Profile, not registration form
         navigation.replace('MerchantDashboard');

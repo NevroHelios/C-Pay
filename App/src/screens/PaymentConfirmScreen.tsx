@@ -188,7 +188,11 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
           const txHash = await sendPayment(
             wallet,
             paymentData.merchant,
-            paymentData.amount
+            paymentData.amount,
+            {
+              merchantId,
+              note: paymentData.note,
+            }
           );
 
           console.log('✅ Transaction submitted to Stellar:', txHash);
