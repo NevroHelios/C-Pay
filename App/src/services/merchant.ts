@@ -16,6 +16,7 @@ export interface Merchant {
   id?: string;
   business_name: string;
   wallet_address: string;
+  cpay_id?: string;
   owner_name?: string;
   email?: string;
   phone_number?: string;
@@ -30,6 +31,13 @@ export interface Merchant {
   created_at?: string;
   updated_at?: string;
 }
+
+const MERCHANT_LOOKUP_CACHE_TTL_MS = 5 * 60 * 1000;
+const merchantByAddressCache = new Map<string, {
+  merchant: Merchant | null;
+  expiresAt: number;
+}>();
+const merchantByAddressInFlight = new Map<string, Promise<Merchant | null>>();
 
 export interface MerchantQRCode {
   id?: string;
@@ -256,6 +264,35 @@ export async function getMerchantById(
  * Used for backward compatibility with old QR codes
  */
 export async function getMerchantByAddress(
+  walletAddress: string
+): Promise<Merchant | null> {
+  const normalizedAddress = walletAddress.trim();
+  const cached = merchantByAddressCache.get(normalizedAddress);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.merchant;
+  }
+
+  const inFlight = merchantByAddressInFlight.get(normalizedAddress);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const lookup = fetchMerchantByAddress(normalizedAddress);
+  merchantByAddressInFlight.set(normalizedAddress, lookup);
+
+  try {
+    const merchant = await lookup;
+    merchantByAddressCache.set(normalizedAddress, {
+      merchant,
+      expiresAt: Date.now() + MERCHANT_LOOKUP_CACHE_TTL_MS,
+    });
+    return merchant;
+  } finally {
+    merchantByAddressInFlight.delete(normalizedAddress);
+  }
+}
+
+async function fetchMerchantByAddress(
   walletAddress: string
 ): Promise<Merchant | null> {
   try {

@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getBalance, isValidAccountId, transferTokens } from '../services/blockchain';
 import { saveTransaction, getUserDisplayName, generateTransactionId } from '../services/storage';
+import { getMerchantByAddress } from '../services/merchant';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
@@ -46,13 +47,19 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const [recipientFetched, setRecipientFetched] = useState<boolean>(false);
   const paymentInProgress = useRef<boolean>(false);
   const networkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recipientLookupSeq = useRef<number>(0);
 
   useEffect(() => {
     loadWalletData();
     
     // If coming from QR scan or deep link
     if (route?.params?.recipientAddress) {
-      setRecipientAddress(route.params.recipientAddress);
+      const address = route.params.recipientAddress;
+      setRecipientAddress(address);
+      setRecipientInput(address);
+      if (isValidAccountId(address)) {
+        void fetchRecipientName(address);
+      }
     }
     if (route?.params?.recipientName) {
       setRecipientName(route.params.recipientName);
@@ -127,10 +134,16 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
   // Fetch recipient name when address is entered
   const fetchRecipientName = async (address: string) => {
+    const lookupSeq = ++recipientLookupSeq.current;
+
     if (!address || !isValidAccountId(address)) {
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
+      if (!route?.params?.merchantId) {
+        setMerchantId(null);
+        setIsMerchantPayment(false);
+      }
       return;
     }
 
@@ -139,17 +152,39 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
+      if (!route?.params?.merchantId) {
+        setMerchantId(null);
+        setIsMerchantPayment(false);
+      }
       return;
     }
 
     setFetchingRecipient(true);
     try {
-      // Fetch both name and C-Pay ID
-      const [name, cpayId] = await Promise.all([
+      const [name, cpayId, merchant] = await Promise.all([
         getUserDisplayName(address),
-        getCPayIdByWallet(address)
+        getCPayIdByWallet(address),
+        getMerchantByAddress(address),
       ]);
-      
+
+      if (lookupSeq !== recipientLookupSeq.current) {
+        return;
+      }
+
+      if (merchant?.id && merchant.is_active !== false) {
+        setMerchantId(merchant.id);
+        setIsMerchantPayment(true);
+        setRecipientName(merchant.business_name || name || '');
+        setRecipientCPayId(merchant.cpay_id || cpayId || formatWalletFingerprint(address));
+        setRecipientFetched(true);
+        return;
+      }
+
+      if (!route?.params?.merchantId) {
+        setMerchantId(null);
+        setIsMerchantPayment(false);
+      }
+
       if (name) {
         setRecipientName(name);
         setRecipientCPayId(cpayId || formatWalletFingerprint(address));
@@ -164,8 +199,14 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
+      if (!route?.params?.merchantId) {
+        setMerchantId(null);
+        setIsMerchantPayment(false);
+      }
     } finally {
-      setFetchingRecipient(false);
+      if (lookupSeq === recipientLookupSeq.current) {
+        setFetchingRecipient(false);
+      }
     }
   };
 
@@ -253,7 +294,26 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const handleSendMoney = async () => {
     if (!validateInputs()) return;
 
-    const displayId = recipientCPayId || formatWalletFingerprint(recipientAddress);
+    let effectiveMerchantId = merchantId;
+    let effectiveRecipientName = recipientName;
+    let effectiveRecipientCPayId = recipientCPayId;
+
+    if (!merchantId && isValidAccountId(recipientAddress.trim())) {
+      const merchant = await getMerchantByAddress(recipientAddress.trim());
+      if (merchant?.id && merchant.is_active !== false) {
+        effectiveMerchantId = merchant.id;
+        effectiveRecipientName = merchant.business_name || recipientName;
+        effectiveRecipientCPayId = merchant.cpay_id || recipientCPayId;
+        setMerchantId(merchant.id);
+        setIsMerchantPayment(true);
+        setRecipientName(effectiveRecipientName);
+        if (effectiveRecipientCPayId) {
+          setRecipientCPayId(effectiveRecipientCPayId);
+        }
+      }
+    }
+
+    const displayId = effectiveRecipientCPayId || formatWalletFingerprint(recipientAddress);
 
     AlertManager.alert(
       'Confirm Payment',
@@ -298,7 +358,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               navigation.replace('PaymentProcessing', {
                 transactionId: transactionId,
                 amount: amount,
-                recipientName: recipientName || displayId,
+                recipientName: effectiveRecipientName || displayId,
                 recipientAddress: recipientAddress.trim(),
               });
 
@@ -307,7 +367,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 recipientAddress.trim(),
                 amount,
                 {
-                  merchantId,
+                  merchantId: effectiveMerchantId,
                   note,
                 }
               );
@@ -332,13 +392,13 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 status: 'pending' as const,
                 // For merchant payments: merchant_name is business name, recipient_name is same
                 // For personal payments: recipient_name is the person's name (if available)
-                merchant_name: merchantId ? recipientName : undefined,
-                recipient_name: recipientName || undefined,
+                merchant_name: effectiveMerchantId ? effectiveRecipientName : undefined,
+                recipient_name: effectiveRecipientName || undefined,
                 sender_name: senderName || undefined,
                 note: note || undefined, // Separate note field
                 created_at: new Date().toISOString(),
-                transaction_type: merchantId ? 'merchant' as const : 'personal' as const,
-                merchant_id: merchantId || undefined,
+                transaction_type: effectiveMerchantId ? 'merchant' as const : 'personal' as const,
+                merchant_id: effectiveMerchantId || undefined,
               };
               
               saveTransaction(transactionData)
@@ -351,7 +411,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 transactionHash: txHash,
                 fromAddress: walletAddress,
                 amount: amount,
-                recipientName: recipientName || displayId,
+                recipientName: effectiveRecipientName || displayId,
                 recipientAddress: recipientAddress.trim(),
                 processingTime: processingTime || 2,
                 timestamp: new Date().toLocaleString('en-US', {
@@ -363,7 +423,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                   hour12: true,
                 }),
                 note: note || undefined,
-                isMerchantPayment: !!merchantId,
+                isMerchantPayment: !!effectiveMerchantId,
               });
             } catch (error: any) {
               paymentInProgress.current = false;
@@ -396,7 +456,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               // Navigate to Failure screen
               navigation.replace('PaymentFailure', {
                 amount: amount,
-                recipientName: recipientName || displayId,
+                recipientName: effectiveRecipientName || displayId,
                 recipientAddress: recipientAddress.trim(),
                 errorMessage,
                 errorReason: failureReason,

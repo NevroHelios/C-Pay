@@ -138,9 +138,26 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
         return;
       }
 
+      let resolvedMerchantInfo = merchantInfo;
+      if (!resolvedMerchantInfo && paymentData.merchant) {
+        const merchant = paymentData.merchantId
+          ? await getMerchantById(paymentData.merchantId)
+          : await getMerchantByAddress(paymentData.merchant);
+
+        if (merchant) {
+          resolvedMerchantInfo = {
+            id: merchant.id,
+            business_name: merchant.business_name,
+            category: merchant.category,
+            description: merchant.description,
+          };
+          setMerchantInfo(resolvedMerchantInfo);
+        }
+      }
+
       // Get merchant/recipient name
-      const merchantOrRecipientName = merchantInfo?.business_name || paymentData.name || 'Unknown';
-      const isMerchantPayment = !!(paymentData.merchantId || merchantInfo?.id);
+      const merchantOrRecipientName = resolvedMerchantInfo?.business_name || paymentData.name || 'Unknown';
+      const isMerchantPayment = !!(paymentData.merchantId || resolvedMerchantInfo?.id);
       
       // Generate transaction ID upfront
       const transactionId = generateTransactionId();
@@ -160,7 +177,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       const startTime = Date.now();
 
       // Save transaction as "processing"
-      const merchantId = paymentData.merchantId || merchantInfo?.id || null;
+      const merchantId = paymentData.merchantId || resolvedMerchantInfo?.id || null;
       
       // Get sender's name from AsyncStorage
       const senderName = await AsyncStorage.getItem('user_name');
