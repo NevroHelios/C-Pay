@@ -1,9 +1,12 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
+    contract, contracterror, contractevent, contractimpl, contracttype, panic_with_error, Address,
     BytesN, Env,
 };
+
+const MIN_INTENT_LIFETIME_SECONDS: u64 = 30;
+const MAX_INTENT_LIFETIME_SECONDS: u64 = 86_400;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,6 +71,84 @@ pub enum Error {
     IntentMissing = 9,
     IntentExpired = 10,
     InvalidStatus = 11,
+    MerchantExists = 12,
+    IntentLifetimeTooLong = 13,
+    PayerMismatch = 14,
+}
+
+#[contractevent(topics = ["config", "init"], data_format = "vec")]
+pub struct ConfigInitialized {
+    pub admin: Address,
+    pub token: Address,
+    pub relayer: Address,
+}
+
+#[contractevent(topics = ["config", "admin"], data_format = "single-value")]
+pub struct AdminSet {
+    pub admin: Address,
+}
+
+#[contractevent(topics = ["config", "token"], data_format = "single-value")]
+pub struct TokenSet {
+    pub token: Address,
+}
+
+#[contractevent(topics = ["config", "relayer"], data_format = "single-value")]
+pub struct RelayerSet {
+    pub relayer: Address,
+}
+
+#[contractevent(topics = ["config", "paused"], data_format = "single-value")]
+pub struct PausedSet {
+    pub paused: bool,
+}
+
+#[contractevent(topics = ["merchant", "register"], data_format = "vec")]
+pub struct MerchantRegistered {
+    #[topic]
+    pub merchant_id: BytesN<32>,
+    pub account: Address,
+    pub active: bool,
+}
+
+#[contractevent(topics = ["merchant", "account"], data_format = "vec")]
+pub struct MerchantAccountSet {
+    #[topic]
+    pub merchant_id: BytesN<32>,
+    pub account: Address,
+}
+
+#[contractevent(topics = ["merchant", "active"], data_format = "single-value")]
+pub struct MerchantActiveSet {
+    #[topic]
+    pub merchant_id: BytesN<32>,
+    pub active: bool,
+}
+
+#[contractevent(topics = ["intent", "create"], data_format = "vec")]
+pub struct IntentCreated {
+    #[topic]
+    pub intent_id: BytesN<32>,
+    pub payer: Address,
+    pub merchant_id: BytesN<32>,
+    pub merchant: Address,
+    pub amount: i128,
+    pub expires_at: u64,
+    pub memo_hash: BytesN<32>,
+}
+
+#[contractevent(topics = ["intent", "confirm"], data_format = "vec")]
+pub struct IntentConfirmed {
+    #[topic]
+    pub intent_id: BytesN<32>,
+    pub payment_hash: BytesN<32>,
+}
+
+#[contractevent(topics = ["intent", "cancel"], data_format = "single-value")]
+pub struct IntentCancelled {
+    #[topic]
+    pub intent_id: BytesN<32>,
+    pub payer: Address,
 }
 
 #[contract]
@@ -89,8 +170,12 @@ impl CPayPayments {
 
         env.storage().instance().set(&DataKey::Config, &config);
         extend_instance_ttl(&env);
-        env.events()
-            .publish((symbol_short!("config"), symbol_short!("init")), ());
+        ConfigInitialized {
+            admin: config.admin.clone(),
+            token: config.token.clone(),
+            relayer: config.relayer.clone(),
+        }
+        .publish(&env);
     }
 
     pub fn config(env: Env) -> Result<Config, Error> {
@@ -99,38 +184,44 @@ impl CPayPayments {
     }
 
     pub fn set_admin(env: Env, admin: Address) -> Result<(), Error> {
-        update_config(&env, |mut config| {
+        let updated = update_config(&env, |mut config| {
             config.admin.require_auth();
-            config.admin = admin;
+            config.admin = admin.clone();
             config
         })?;
 
-        env.events()
-            .publish((symbol_short!("config"), symbol_short!("admin")), ());
+        AdminSet {
+            admin: updated.admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
     pub fn set_token(env: Env, token: Address) -> Result<(), Error> {
-        update_config(&env, |mut config| {
+        let updated = update_config(&env, |mut config| {
             config.admin.require_auth();
-            config.token = token;
+            config.token = token.clone();
             config
         })?;
 
-        env.events()
-            .publish((symbol_short!("config"), symbol_short!("token")), ());
+        TokenSet {
+            token: updated.token,
+        }
+        .publish(&env);
         Ok(())
     }
 
     pub fn set_relayer(env: Env, relayer: Address) -> Result<(), Error> {
-        update_config(&env, |mut config| {
+        let updated = update_config(&env, |mut config| {
             config.admin.require_auth();
-            config.relayer = relayer;
+            config.relayer = relayer.clone();
             config
         })?;
 
-        env.events()
-            .publish((symbol_short!("config"), symbol_short!("relayer")), ());
+        RelayerSet {
+            relayer: updated.relayer,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -141,8 +232,7 @@ impl CPayPayments {
             config
         })?;
 
-        env.events()
-            .publish((symbol_short!("config"), symbol_short!("paused")), paused);
+        PausedSet { paused }.publish(&env);
         Ok(())
     }
 
@@ -154,20 +244,49 @@ impl CPayPayments {
         require_admin(&env)?;
 
         let now = env.ledger().timestamp();
+        let key = DataKey::Merchant(merchant_id.clone());
+        if env.storage().persistent().has(&key) {
+            return Err(Error::MerchantExists);
+        }
+
         let merchant = Merchant {
             account,
             active: true,
             created_at: now,
             updated_at: now,
         };
-        let key = DataKey::Merchant(merchant_id.clone());
 
         env.storage().persistent().set(&key, &merchant);
         extend_persistent_ttl(&env, &key);
-        env.events().publish(
-            (symbol_short!("merchant"), symbol_short!("set")),
+        MerchantRegistered {
             merchant_id,
-        );
+            account: merchant.account.clone(),
+            active: merchant.active,
+        }
+        .publish(&env);
+
+        Ok(merchant)
+    }
+
+    pub fn set_merchant_account(
+        env: Env,
+        merchant_id: BytesN<32>,
+        account: Address,
+    ) -> Result<Merchant, Error> {
+        require_admin(&env)?;
+
+        let key = DataKey::Merchant(merchant_id.clone());
+        let mut merchant = read_merchant(&env, &merchant_id)?;
+        merchant.account = account;
+        merchant.updated_at = env.ledger().timestamp();
+
+        env.storage().persistent().set(&key, &merchant);
+        extend_persistent_ttl(&env, &key);
+        MerchantAccountSet {
+            merchant_id,
+            account: merchant.account.clone(),
+        }
+        .publish(&env);
 
         Ok(merchant)
     }
@@ -186,10 +305,11 @@ impl CPayPayments {
 
         env.storage().persistent().set(&key, &merchant);
         extend_persistent_ttl(&env, &key);
-        env.events().publish(
-            (symbol_short!("merchant"), symbol_short!("active")),
-            (merchant_id, active),
-        );
+        MerchantActiveSet {
+            merchant_id,
+            active,
+        }
+        .publish(&env);
 
         Ok(merchant)
     }
@@ -217,8 +337,11 @@ impl CPayPayments {
         }
 
         let now = env.ledger().timestamp();
-        if expires_at <= now {
+        if expires_at <= now.saturating_add(MIN_INTENT_LIFETIME_SECONDS) {
             return Err(Error::InvalidExpiry);
+        }
+        if expires_at > now.saturating_add(MAX_INTENT_LIFETIME_SECONDS) {
+            return Err(Error::IntentLifetimeTooLong);
         }
 
         let intent_key = DataKey::Intent(intent_id.clone());
@@ -245,10 +368,16 @@ impl CPayPayments {
 
         env.storage().temporary().set(&intent_key, &intent);
         extend_temporary_ttl(&env, &intent_key);
-        env.events().publish(
-            (symbol_short!("intent"), symbol_short!("create")),
+        IntentCreated {
             intent_id,
-        );
+            payer: intent.payer.clone(),
+            merchant_id: intent.merchant_id.clone(),
+            merchant: intent.merchant.clone(),
+            amount: intent.amount,
+            expires_at: intent.expires_at,
+            memo_hash: intent.memo_hash.clone(),
+        }
+        .publish(&env);
 
         Ok(intent)
     }
@@ -269,19 +398,20 @@ impl CPayPayments {
             return Err(Error::InvalidStatus);
         }
 
-        if intent.expires_at < env.ledger().timestamp() {
+        if intent.expires_at <= env.ledger().timestamp() {
             return Err(Error::IntentExpired);
         }
 
         intent.status = PaymentStatus::Confirmed;
-        intent.payment_hash = Some(payment_hash);
+        intent.payment_hash = Some(payment_hash.clone());
 
         env.storage().temporary().set(&key, &intent);
         extend_temporary_ttl(&env, &key);
-        env.events().publish(
-            (symbol_short!("intent"), symbol_short!("confirm")),
+        IntentConfirmed {
             intent_id,
-        );
+            payment_hash,
+        }
+        .publish(&env);
 
         Ok(intent)
     }
@@ -297,7 +427,7 @@ impl CPayPayments {
         let mut intent = read_intent(&env, &intent_id)?;
 
         if intent.payer != payer {
-            return Err(Error::InvalidStatus);
+            return Err(Error::PayerMismatch);
         }
 
         if intent.status != PaymentStatus::Created {
@@ -308,10 +438,7 @@ impl CPayPayments {
 
         env.storage().temporary().set(&key, &intent);
         extend_temporary_ttl(&env, &key);
-        env.events().publish(
-            (symbol_short!("intent"), symbol_short!("cancel")),
-            intent_id,
-        );
+        IntentCancelled { intent_id, payer }.publish(&env);
 
         Ok(intent)
     }
@@ -417,19 +544,33 @@ mod test {
         BytesN::from_array(env, &[byte; 32])
     }
 
+    fn setup<'a>(
+        env: &'a Env,
+    ) -> (
+        CPayPaymentsClient<'a>,
+        Address,
+        Address,
+        Address,
+        Address,
+        Address,
+    ) {
+        env.mock_all_auths();
+
+        let admin = Address::generate(env);
+        let token = Address::generate(env);
+        let relayer = Address::generate(env);
+        let merchant = Address::generate(env);
+        let payer = Address::generate(env);
+        let contract_id = env.register(CPayPayments, (&admin, &token, &relayer));
+        let client = CPayPaymentsClient::new(env, &contract_id);
+
+        (client, admin, token, relayer, merchant, payer)
+    }
+
     #[test]
     fn registers_merchant_and_tracks_payment_intent() {
         let env = Env::default();
-        env.mock_all_auths();
-
-        let admin = Address::generate(&env);
-        let token = Address::generate(&env);
-        let relayer = Address::generate(&env);
-        let merchant = Address::generate(&env);
-        let payer = Address::generate(&env);
-
-        let contract_id = env.register(CPayPayments, (&admin, &token, &relayer));
-        let client = CPayPaymentsClient::new(&env, &contract_id);
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
 
         let merchant_id = id(&env, 1);
         let intent_id = id(&env, 2);
@@ -468,16 +609,7 @@ mod test {
     #[test]
     fn blocks_inactive_merchants() {
         let env = Env::default();
-        env.mock_all_auths();
-
-        let admin = Address::generate(&env);
-        let token = Address::generate(&env);
-        let relayer = Address::generate(&env);
-        let merchant = Address::generate(&env);
-        let payer = Address::generate(&env);
-
-        let contract_id = env.register(CPayPayments, (&admin, &token, &relayer));
-        let client = CPayPaymentsClient::new(&env, &contract_id);
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
 
         let merchant_id = id(&env, 5);
         let intent_id = id(&env, 6);
@@ -491,17 +623,187 @@ mod test {
             .unwrap()
             .unwrap();
 
-        let result = client
+        let result = client.try_create_intent(
+            &payer,
+            &merchant_id,
+            &intent_id,
+            &50_i128,
+            &(env.ledger().timestamp() + 600),
+            &id(&env, 7),
+        );
+
+        assert_eq!(result, Err(Ok(Error::MerchantInactive)));
+    }
+
+    #[test]
+    fn rejects_duplicate_merchants_and_rotates_account_explicitly() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, merchant, _payer) = setup(&env);
+
+        let merchant_id = id(&env, 8);
+        let replacement = Address::generate(&env);
+
+        let original = client
+            .try_register_merchant(&merchant_id, &merchant)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            client.try_register_merchant(&merchant_id, &replacement),
+            Err(Ok(Error::MerchantExists))
+        );
+
+        let updated = client
+            .try_set_merchant_account(&merchant_id, &replacement)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(updated.account, replacement);
+        assert_eq!(updated.created_at, original.created_at);
+        assert!(updated.updated_at >= original.updated_at);
+    }
+
+    #[test]
+    fn enforces_intent_expiry_bounds_and_duplicate_ids() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
+
+        let merchant_id = id(&env, 9);
+        client
+            .try_register_merchant(&merchant_id, &merchant)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &merchant_id,
+                &id(&env, 10),
+                &50_i128,
+                &(env.ledger().timestamp() + MIN_INTENT_LIFETIME_SECONDS),
+                &id(&env, 11),
+            ),
+            Err(Ok(Error::InvalidExpiry))
+        );
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &merchant_id,
+                &id(&env, 12),
+                &50_i128,
+                &(env.ledger().timestamp() + MAX_INTENT_LIFETIME_SECONDS + 1),
+                &id(&env, 13),
+            ),
+            Err(Ok(Error::IntentLifetimeTooLong))
+        );
+
+        client
+            .try_create_intent(
+                &payer,
+                &merchant_id,
+                &id(&env, 14),
+                &50_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 15),
+            )
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &merchant_id,
+                &id(&env, 14),
+                &50_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 16),
+            ),
+            Err(Ok(Error::IntentExists))
+        );
+    }
+
+    #[test]
+    fn pause_blocks_new_and_confirmed_intents() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
+
+        let merchant_id = id(&env, 17);
+        let intent_id = id(&env, 18);
+
+        client
+            .try_register_merchant(&merchant_id, &merchant)
+            .unwrap()
+            .unwrap();
+        client
             .try_create_intent(
                 &payer,
                 &merchant_id,
                 &intent_id,
                 &50_i128,
                 &(env.ledger().timestamp() + 600),
-                &id(&env, 7),
+                &id(&env, 19),
             )
+            .unwrap()
+            .unwrap();
+        client.try_set_paused(&true).unwrap().unwrap();
+
+        assert_eq!(
+            client.try_create_intent(
+                &payer,
+                &merchant_id,
+                &id(&env, 20),
+                &50_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 21),
+            ),
+            Err(Ok(Error::Paused))
+        );
+        assert_eq!(
+            client.try_confirm_intent(&intent_id, &id(&env, 22)),
+            Err(Ok(Error::Paused))
+        );
+    }
+
+    #[test]
+    fn payer_can_cancel_created_intent() {
+        let env = Env::default();
+        let (client, _admin, _token, _relayer, merchant, payer) = setup(&env);
+
+        let merchant_id = id(&env, 23);
+        let intent_id = id(&env, 24);
+
+        client
+            .try_register_merchant(&merchant_id, &merchant)
+            .unwrap()
+            .unwrap();
+        client
+            .try_create_intent(
+                &payer,
+                &merchant_id,
+                &intent_id,
+                &50_i128,
+                &(env.ledger().timestamp() + 600),
+                &id(&env, 25),
+            )
+            .unwrap()
             .unwrap();
 
-        assert_eq!(result, Err(Error::MerchantInactive));
+        let stranger = Address::generate(&env);
+        assert_eq!(
+            client.try_cancel_intent(&stranger, &intent_id),
+            Err(Ok(Error::PayerMismatch))
+        );
+
+        let cancelled = client
+            .try_cancel_intent(&payer, &intent_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cancelled.status, PaymentStatus::Cancelled);
+        assert_eq!(
+            client.try_confirm_intent(&intent_id, &id(&env, 26)),
+            Err(Ok(Error::InvalidStatus))
+        );
     }
 }

@@ -4,3 +4,4 @@ coverage
 coverage.json
 target
 contract-ids.json
+contracts/cpay_payments/test_snapshots/

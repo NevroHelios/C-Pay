@@ -175,6 +175,16 @@ The deploy script writes `contract-ids.json` with:
 
 Use those values for `TOKEN_CONTRACT_ID` and `CPAY_CONTRACT_ID` in backend services.
 
+Current testnet deployment in this workspace:
+
+| Item | Value |
+| --- | --- |
+| Asset | `CPINR:GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ` |
+| Stellar Asset Contract ID | `CDR6RDWPZAHOARJKV5YF57VEOE2PJQP6KTE5FGQSJVKLPN5M3KCFE3SN` |
+| C-Pay payments contract ID | `CBHYSB5W6TRDTGGYSZUYJBXPPIO7XJS2SLNHJVKWEINOKQC7MKU4N6CR` |
+| C-Pay payments Wasm hash | `24522af6d53859f9c453cea65912c4b13000baec04301598b12edc905f084fb9` |
+| Updated | `2026-04-27T03:33:54.623Z` |
+
 ## Contract Behavior
 
 `cpay_payments` exposes:
@@ -185,6 +195,7 @@ Use those values for `TOKEN_CONTRACT_ID` and `CPAY_CONTRACT_ID` in backend servi
 - `set_relayer`
 - `set_paused`
 - `register_merchant`
+- `set_merchant_account`
 - `set_merchant_active`
 - `merchant`
 - `create_intent`
@@ -198,8 +209,11 @@ Security and fee choices:
 - Admin-only functions call `require_auth`.
 - User-created payment intents require payer auth.
 - Relayer confirmation requires relayer auth.
+- Contract changes emit typed `#[contractevent]` events for config, merchant, and intent state.
 - Merchant registry uses persistent storage.
+- `register_merchant` rejects duplicate IDs; use `set_merchant_account` for account rotation.
 - Payment intents use temporary storage to reduce storage cost.
+- Payment intent expiry must be more than 30 seconds and no more than 24 hours in the future.
 - The contract extends TTL when entries are touched.
 - Payment movement stays on Stellar payment operations, so normal transfers remain cheap.
 - The pause switch blocks new and confirmed intents during incidents.
