@@ -1,0 +1,74 @@
+name: EAS Production Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Production platform to build
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  check-eas-token:
+    name: Check EAS token
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.eas-token.outputs.has_token }}
+    steps:
+      - name: Check secret
+        id: eas-token
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+        run: |
+          if [ -n "$EAS_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  missing-eas-token:
+    name: EAS token not configured
+    runs-on: ubuntu-latest
+    needs: check-eas-token
+    if: ${{ needs.check-eas-token.outputs.has_token != 'true' }}
+    steps:
+      - name: Skip build
+        run: echo "Skipping production build because repository secret EAS_TOKEN is not configured."
+
+  production-build:
+    name: Production app build
+    runs-on: ubuntu-latest
+    needs: check-eas-token
+    if: ${{ needs.check-eas-token.outputs.has_token == 'true' }}
+    defaults:
+      run:
+        working-directory: App
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: App/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Trigger EAS production build
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+        run: npx eas-cli build --platform "${{ inputs.platform }}" --profile production --non-interactive

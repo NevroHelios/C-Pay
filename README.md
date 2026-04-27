@@ -47,6 +47,7 @@ _No crypto knowledge required_
   - [Database Schema](#database-schema)
 - [Project Structure](#-project-structure)
 - [Quick Start](#quick-start)
+- [CI/CD](#-cicd)
 - [Runbook](#-runbook)
   - [Supabase Setup](#1-supabase-setup)
   - [Blockchain Setup](#2-blockchain-setup)
@@ -646,6 +647,29 @@ npm expo start
 ```
 
 `expo` is not an npm command. Use `npm start` from `App/` or `npx expo start`.
+
+---
+
+## 🔁 CI/CD
+
+GitHub Actions workflows:
+
+```text
+.github/workflows/ci.yml
+.github/workflows/eas-production-build.yml
+```
+
+The CI pipeline runs on pushes to `main`/`master`, pull requests, and manual `workflow_dispatch` runs.
+
+| Job | Checks |
+| --- | --- |
+| `Mobile app` | `npm ci`, Expo dependency compatibility, TypeScript compile |
+| `Relayer` | `npm ci`, Node syntax checks, Jest with `--passWithNoTests` |
+| `Blockchain and contract` | `npm ci`, Stellar rail Jest tests, Rust formatting, Soroban contract tests |
+
+The EAS production build workflow is manual only. It supports `android`, `ios`, or `all` as the platform input and is guarded by the repository secret `EAS_TOKEN`. If the secret is not configured, the workflow exits successfully with a clear skip message instead of failing unexpectedly.
+
+Before using the production build workflow for releases, configure `EAS_TOKEN`, Android/iOS credentials, and release approval rules in GitHub/EAS.
 
 ---
 
