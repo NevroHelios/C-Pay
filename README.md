@@ -23,6 +23,9 @@ _No crypto knowledge required_
   <a href="https://drive.google.com/file/d/1zgbPvRwF3VkCLIEbEEtYytIfsTtc5jrg/view?usp=sharing">
     <img src="https://img.shields.io/badge/Demo%20Video-Watch-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Demo Video" />
   </a>
+  <a href="https://forms.gle/dTGDtMPoZUSMygea9">
+    <img src="https://img.shields.io/badge/Give%20Feedback-Form-673AB7?style=for-the-badge&logo=googleforms&logoColor=white" alt="Give Feedback" />
+  </a>
   <a href="https://docs.google.com/spreadsheets/d/1JQ_7-KpTUSlvj9x1c5fqgbnhFPx8JfYAEWUcYOchnA0/edit?usp=sharing">
     <img src="https://img.shields.io/badge/Feedback%20Sheet-Google-4285F4?style=for-the-badge&logo=googlesheets&logoColor=white" alt="Feedback Sheet" />
   </a>
@@ -175,12 +178,16 @@ The production Android profile creates a release APK. iOS builds are separate ar
 
 ## 📝 Feedback Responses
 
+Want to try C-Pay and share feedback? Fill out the [C-Pay feedback form](https://forms.gle/dTGDtMPoZUSMygea9).
+
 Live response sheet: [C-Pay feedback responses](https://docs.google.com/spreadsheets/d/1JQ_7-KpTUSlvj9x1c5fqgbnhFPx8JfYAEWUcYOchnA0/edit?usp=sharing)
 
-| # | Timestamp | Full Name | Email | Wallet Address | Overall Satisfaction | UI | Speed | Security | Transaction Reliability | Support | Most Used Features | Bug Reported | Issue Details | Recommend Rating | Suggestions |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 28/04/2026 10:44:06 | SHAMPA DAS | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` | 10 | Good (3) | Fair (2) | Excellent (4) | Excellent (4) | Fair (2) | Sending Funds, In-App Crypto Exchange/Swap | No |  | 4 | There is no withdrawal option |
-| 2 | 28/04/2026 12:38:54 | soumen mandal | soumenmandal1080@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | 10 | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Sending Funds, Receiving Funds, Checking Balance/History, Staking/Yield Programs, In-App Crypto Exchange/Swap, Other (Please specify below) | No | NaN | 5 | create a StartUp use this |
+| # | Timestamp | Full Name | Form Email | Provided Email | Wallet Address | Overall Satisfaction | UI | Speed | Security | Transaction Reliability | Support | Most Used Features | Bug Reported | Issue Details | Recommend Rating | Suggestions |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 28/04/2026 10:44:06 | SHAMPA DAS | dasshampa2022@gmail.com | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` | 10 | Good (3) | Fair (2) | Excellent (4) | Excellent (4) | Fair (2) | Sending Funds, In-App Crypto Exchange/Swap | No |  | 4 | There is no withdrawal option |
+| 2 | 28/04/2026 12:38:54 | soumen mandal | soumenmandal1080@gmail.com | soumenmandal1080@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | 10 | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Sending Funds, Receiving Funds, Checking Balance/History, Staking/Yield Programs, In-App Crypto Exchange/Swap, Other (Please specify below) | No | NaN | 5 | create a StartUp use this |
+| 3 | 28/04/2026 18:24:02 | SUMAN PRADHAN | pradhan.1.7.2006@gmail.com | prasuman01@gamil.com | `GCIVVA5M5WCBTWZ4AXBX6W4THTXAHHCUP27VFQIIVTGU7HLLLODZ6AXH` | 10 | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Sending Funds, Receiving Funds, Checking Balance/History, Staking/Yield Programs, In-App Crypto Exchange/Swap, Other (Please specify below) | No |  | 5 | No |
+| 4 | 28/04/2026 19:25:57 | sam mandal | kinemaster1444@gmail.com | kinemaster1444@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | 10 | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Sending Funds, Receiving Funds, Checking Balance/History, Staking/Yield Programs, In-App Crypto Exchange/Swap, Other (Please specify below) | No | NaN | 5 |  |
 
 ---
 
