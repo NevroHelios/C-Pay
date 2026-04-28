@@ -14,7 +14,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getBalance, isValidAccountId, transferTokens } from '../services/blockchain';
 import { saveTransaction, getUserDisplayName } from '../services/storage';
-import { getMerchantByAddress } from '../services/merchant';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
@@ -22,6 +21,7 @@ import { Button, LoadingSpinner } from '../components';
 import { AlertManager } from '../utils/alert';
 import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount } from '../utils/currency';
 import { PILOT_TESTNET_TEXT } from '../utils/pilot';
+import { getPaymentFailureCopy } from '../utils/paymentFailure';
 
 interface SendMoneyScreenProps {
   navigation: any;
@@ -48,9 +48,16 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const paymentInProgress = useRef<boolean>(false);
   const networkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recipientLookupSeq = useRef<number>(0);
+  const routeMerchantId = typeof route?.params?.merchantId === 'string'
+    ? route.params.merchantId.trim()
+    : '';
+  const isExplicitMerchantRoute = Boolean(routeMerchantId);
 
   useEffect(() => {
     loadWalletData();
+    const routeRecipientName = typeof route?.params?.recipientName === 'string'
+      ? route.params.recipientName.trim()
+      : '';
     
     // If coming from QR scan or deep link
     if (route?.params?.recipientAddress) {
@@ -58,11 +65,13 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientAddress(address);
       setRecipientInput(address);
       if (isValidAccountId(address)) {
-        void fetchRecipientName(address);
+        void fetchRecipientName(address, {
+          fallbackName: routeRecipientName,
+        });
       }
     }
-    if (route?.params?.recipientName) {
-      setRecipientName(route.params.recipientName);
+    if (routeRecipientName) {
+      setRecipientName(routeRecipientName);
     }
     if (route?.params?.amount && parseFloat(route.params.amount) > 0) {
       // Amount is already in the user-visible credit unit.
@@ -76,13 +85,12 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setHideBalance(true);
     }
     // Check if this is a merchant payment
-    if (route?.params?.merchantId) {
-      setMerchantId(route.params.merchantId);
+    if (routeMerchantId) {
+      setMerchantId(routeMerchantId);
+    } else {
+      setMerchantId(null);
     }
-    // Check payment type flags
-    if (route?.params?.isMerchantPayment) {
-      setIsMerchantPayment(true);
-    }
+    setIsMerchantPayment(isExplicitMerchantRoute);
     if (route?.params?.isFromQR) {
       setIsFromQR(true);
     }
@@ -133,14 +141,20 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   };
 
   // Fetch recipient name when address is entered
-  const fetchRecipientName = async (address: string) => {
+  const fetchRecipientName = async (
+    address: string,
+    options: {
+      fallbackName?: string;
+    } = {}
+  ) => {
     const lookupSeq = ++recipientLookupSeq.current;
+    const fallbackName = options.fallbackName?.trim() || '';
 
     if (!address || !isValidAccountId(address)) {
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
-      if (!route?.params?.merchantId) {
+      if (!isExplicitMerchantRoute) {
         setMerchantId(null);
         setIsMerchantPayment(false);
       }
@@ -152,7 +166,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
-      if (!route?.params?.merchantId) {
+      if (!isExplicitMerchantRoute) {
         setMerchantId(null);
         setIsMerchantPayment(false);
       }
@@ -161,32 +175,23 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
     setFetchingRecipient(true);
     try {
-      const [name, cpayId, merchant] = await Promise.all([
+      const [name, cpayId] = await Promise.all([
         getUserDisplayName(address),
         getCPayIdByWallet(address),
-        getMerchantByAddress(address),
       ]);
 
       if (lookupSeq !== recipientLookupSeq.current) {
         return;
       }
 
-      if (merchant?.id && merchant.is_active !== false) {
-        setMerchantId(merchant.id);
-        setIsMerchantPayment(true);
-        setRecipientName(merchant.business_name || name || '');
-        setRecipientCPayId(merchant.cpay_id || cpayId || formatWalletFingerprint(address));
-        setRecipientFetched(true);
-        return;
-      }
-
-      if (!route?.params?.merchantId) {
+      if (!isExplicitMerchantRoute) {
         setMerchantId(null);
         setIsMerchantPayment(false);
       }
 
-      if (name) {
-        setRecipientName(name);
+      const displayName = name || fallbackName;
+      if (displayName) {
+        setRecipientName(displayName);
         setRecipientCPayId(cpayId || formatWalletFingerprint(address));
         setRecipientFetched(true);
       } else {
@@ -199,7 +204,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
-      if (!route?.params?.merchantId) {
+      if (!isExplicitMerchantRoute) {
         setMerchantId(null);
         setIsMerchantPayment(false);
       }
@@ -297,21 +302,6 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     let effectiveMerchantId = merchantId;
     let effectiveRecipientName = recipientName;
     let effectiveRecipientCPayId = recipientCPayId;
-
-    if (!merchantId && isValidAccountId(recipientAddress.trim())) {
-      const merchant = await getMerchantByAddress(recipientAddress.trim());
-      if (merchant?.id && merchant.is_active !== false) {
-        effectiveMerchantId = merchant.id;
-        effectiveRecipientName = merchant.business_name || recipientName;
-        effectiveRecipientCPayId = merchant.cpay_id || recipientCPayId;
-        setMerchantId(merchant.id);
-        setIsMerchantPayment(true);
-        setRecipientName(effectiveRecipientName);
-        if (effectiveRecipientCPayId) {
-          setRecipientCPayId(effectiveRecipientCPayId);
-        }
-      }
-    }
 
     const displayId = effectiveRecipientCPayId || formatWalletFingerprint(recipientAddress);
 
@@ -424,28 +414,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
               console.error('Send pilot credits error:', error);
               
-              // Map error to user-friendly message
-              let failureReason = 'Payment failed. Please try again.';
-              let errorMessage = 'Transaction Failed';
-              
-              if (error.message?.includes('timeout') || error.message?.includes('slow')) {
-                failureReason = 'Transaction timed out after 1 minute. Your pilot credits are safe - no amount was deducted. The network is experiencing delays. Please try again.';
-                errorMessage = 'Network Timeout';
-              } else if (error.message?.includes('insufficient funds') || error.message?.includes('Insufficient')) {
-                failureReason = 'You don\'t have enough balance to complete this transaction.';
-                errorMessage = 'Insufficient Balance';
-              } else if (error.message?.includes('fee')) {
-                failureReason = 'The payment network is temporarily unavailable. Please try again later.';
-                errorMessage = 'Network Issue';
-              } else if (error.message?.includes('network') || error.message?.includes('Failed to fetch')) {
-                failureReason = 'Unable to connect to the Stellar network. Check your internet connection.';
-                errorMessage = 'Network Connection Failed';
-              } else if (error.message?.includes('temporarily unavailable')) {
-                failureReason = 'Payment service is temporarily unavailable. Your pilot credits are safe. Please try again in a few moments.';
-                errorMessage = 'Service Unavailable';
-              } else {
-                failureReason = error.message + ' Your pilot credits are safe - no amount was deducted.';
-              }
+              const { errorMessage, errorReason, errorCode } = getPaymentFailureCopy(error);
               
               // Navigate to Failure screen
               navigation.replace('PaymentFailure', {
@@ -453,7 +422,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 recipientName: effectiveRecipientName || displayId,
                 recipientAddress: recipientAddress.trim(),
                 errorMessage,
-                errorReason: failureReason,
+                errorReason,
+                errorCode,
                 timestamp: new Date().toLocaleString('en-US', {
                   month: 'short',
                   day: 'numeric',

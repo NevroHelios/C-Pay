@@ -56,11 +56,20 @@ type RootStackParamList = {
   Login: undefined;
   MainTabs: undefined;
   Scan: { returnTo?: string };
-  SendMoney: { recipientAddress?: string; amount?: string; recipientName?: string; note?: string; hideBalance?: boolean };
+  SendMoney: {
+    recipientAddress?: string;
+    amount?: string;
+    recipientName?: string;
+    note?: string;
+    hideBalance?: boolean;
+    merchantId?: string;
+    isMerchantPayment?: boolean;
+    isFromQR?: boolean;
+  };
   PaymentConfirm: { paymentData: PaymentQRData };
   PaymentProcessing: { amount: string; recipientName: string; recipientAddress: string };
   PaymentSuccess: { transactionHash: string; fromAddress: string; amount: string; recipientName: string; recipientAddress: string; processingTime?: number; timestamp?: string; note?: string; isMerchantPayment?: boolean };
-  PaymentFailure: { amount: string; recipientName: string; recipientAddress: string; errorMessage?: string; errorReason?: string; timestamp?: string };
+  PaymentFailure: { amount: string; recipientName: string; recipientAddress: string; errorMessage?: string; errorReason?: string; errorCode?: string; timestamp?: string };
   QRGenerator: undefined;
   TransactionHistory: { highlightTransaction?: string };
   MerchantRegistration: undefined;

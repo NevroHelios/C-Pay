@@ -23,6 +23,7 @@ interface PaymentFailureScreenProps {
       recipientAddress: string;
       errorMessage?: string;
       errorReason?: string;
+      errorCode?: string;
       timestamp?: string;
     };
   };
@@ -38,6 +39,7 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
     recipientAddress,
     errorMessage = 'Transaction failed',
     errorReason = 'Unable to complete the transaction. Please try again.',
+    errorCode,
     timestamp,
   } = route.params;
 
@@ -175,7 +177,10 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
             {/* Error Reason */}
             <View style={styles.errorReasonBox}>
               <Ionicons name="alert-circle-outline" size={20} color={COLORS.textInverse} style={styles.errorReasonIcon} />
-              <Text style={styles.errorReasonText}>{errorReason}</Text>
+              <View style={styles.errorReasonContent}>
+                <Text style={styles.errorReasonText}>{errorReason}</Text>
+                {!!errorCode && <Text style={styles.errorCodeText}>Code: {errorCode}</Text>}
+              </View>
             </View>
 
             {/* Transaction Details */}
@@ -311,11 +316,19 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
   },
   errorReasonText: {
-    flex: 1,
     fontSize: FONT_SIZES.sm,
     color: COLORS.textInverse,
     fontWeight: '500',
     lineHeight: 20,
+  },
+  errorReasonContent: {
+    flex: 1,
+  },
+  errorCodeText: {
+    color: 'rgba(255, 255, 255, 0.82)',
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+    marginTop: SPACING.xs,
   },
   summaryCard: {
     borderRadius: BORDER_RADIUS.xl,

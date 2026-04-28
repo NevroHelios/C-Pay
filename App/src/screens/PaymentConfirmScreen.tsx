@@ -21,6 +21,7 @@ import { Button, Card } from '../components';
 import { AlertManager } from '../utils/alert';
 import { MONEY_UNIT_LABEL, formatMoneyNumber } from '../utils/currency';
 import { PILOT_NOTICE_TEXT } from '../utils/pilot';
+import { getPaymentFailureCopy } from '../utils/paymentFailure';
 
 interface PaymentConfirmScreenProps {
   navigation: any;
@@ -55,7 +56,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       if (merchantDetails) return; // Already have details
 
       try {
-        // Try to get merchant info from DB (Invisible Rail)
+        // Merchant contract payments must come from an explicit merchant QR.
         let merchant = null;
         
         // First try by merchantId if available
@@ -63,8 +64,8 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
           merchant = await getMerchantById(paymentData.merchantId);
         }
         
-        // Fallback to address lookup
-        if (!merchant && paymentData.merchant) {
+        // Fallback to address lookup only for explicit merchant QRs.
+        if (!merchant && paymentData.merchantId && paymentData.merchant) {
           merchant = await getMerchantByAddress(paymentData.merchant);
         }
 
@@ -139,7 +140,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       }
 
       let resolvedMerchantInfo = merchantInfo;
-      if (!resolvedMerchantInfo && paymentData.merchant) {
+      if (!resolvedMerchantInfo && paymentData.merchantId && paymentData.merchant) {
         const merchant = paymentData.merchantId
           ? await getMerchantById(paymentData.merchantId)
           : await getMerchantByAddress(paymentData.merchant);
@@ -157,7 +158,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
 
       // Get merchant/recipient name
       const merchantOrRecipientName = resolvedMerchantInfo?.business_name || paymentData.name || 'Unknown';
-      const isMerchantPayment = !!(paymentData.merchantId || resolvedMerchantInfo?.id);
+      const isMerchantPayment = !!paymentData.merchantId;
       
       // Navigate to Processing screen immediately after authentication
       setLoading(false);
@@ -171,7 +172,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       const submittedAt = new Date().toISOString();
       const startTime = Date.now();
 
-      const merchantId = paymentData.merchantId || resolvedMerchantInfo?.id || null;
+      const merchantId = paymentData.merchantId || null;
 
       // Get sender's name from AsyncStorage
       const senderName = await AsyncStorage.getItem('user_name');
@@ -242,28 +243,7 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
         } catch (backgroundError: any) {
           console.error('❌ Background payment error:', backgroundError);
 
-          // Map error to user-friendly message
-          let failureReason = 'Payment failed. Please try again.';
-          let errorMessage = 'Transaction Failed';
-          
-          if (backgroundError.message?.includes('timeout') || backgroundError.message?.includes('slow')) {
-            failureReason = 'Transaction timed out after 1 minute. Your pilot credits are safe - no amount was deducted. The network is experiencing delays. Please try again.';
-            errorMessage = 'Network Timeout';
-          } else if (backgroundError.message?.includes('insufficient funds') || backgroundError.message?.includes('Insufficient')) {
-            failureReason = 'You don\'t have enough balance to complete this transaction.';
-            errorMessage = 'Insufficient Balance';
-          } else if (backgroundError.message?.includes('fee')) {
-            failureReason = 'Unable to process payment due to network issues.';
-            errorMessage = 'Network Error';
-          } else if (backgroundError.message?.includes('network') || backgroundError.message?.includes('Failed to fetch')) {
-            failureReason = 'Unable to connect to the Stellar network. Check your internet connection.';
-            errorMessage = 'Network Connection Failed';
-          } else if (backgroundError.message?.includes('temporarily unavailable')) {
-            failureReason = 'Payment service is temporarily unavailable. Your pilot credits are safe. Please try again in a few moments.';
-            errorMessage = 'Service Unavailable';
-          } else {
-            failureReason = backgroundError.message + ' Your pilot credits are safe - no amount was deducted.';
-          }
+          const { errorMessage, errorReason, errorCode } = getPaymentFailureCopy(backgroundError);
 
           // Navigate to Failure screen
           navigation.replace('PaymentFailure', {
@@ -271,7 +251,8 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
             recipientName: merchantOrRecipientName,
             recipientAddress: paymentData.merchant,
             errorMessage,
-            errorReason: failureReason,
+            errorReason,
+            errorCode,
             timestamp: new Date().toLocaleString('en-US', {
               month: 'short',
               day: 'numeric',
@@ -288,15 +269,18 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
       console.error('Payment error:', error);
       setLoading(false);
 
-      // Only show error if biometric auth failed (before showing success)
-      // User-friendly error messages (Invisible Rail - no blockchain jargon)
-      let errorMessage = 'Unable to process payment. Please try again.';
       if (error.message?.includes('Authentication Failed')) {
         // User cancelled biometric - no need to show error
         return;
       }
 
-      AlertManager.alert('Payment Failed', errorMessage);
+      const { errorMessage, errorReason, errorCode } = getPaymentFailureCopy(error);
+      AlertManager.alert(
+        errorMessage,
+        errorCode ? `${errorReason}\n\nCode: ${errorCode}` : errorReason,
+        undefined,
+        { type: 'error' }
+      );
     }
   };
 
