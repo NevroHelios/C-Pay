@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as StellarSdk from '@stellar/stellar-base';
@@ -16,8 +17,9 @@ import { Buffer } from 'buffer';
 import { Ionicons } from '@expo/vector-icons';
 import { PINInput } from '../components/PINInput';
 import {
-  hasCloudWalletBackup,
+  getCloudWalletBackup,
   restoreCloudWalletBackup,
+  type CloudWalletBackupRow,
 } from '../services/cloudWalletBackup';
 import { cachePinForSession, recreateWalletFromSecret } from '../services/wallet';
 import { supabase } from '../services/supabase';
@@ -28,6 +30,13 @@ import { AlertManager } from '../utils/alert';
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
 type RestoreStep = 'cloud' | 'key' | 'pin' | 'confirm';
+
+const waitForUiPaint = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
 
 type RestoreWalletRouteParams = {
   verifiedEmail?: string;
@@ -84,6 +93,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
   const [step, setStep] = useState<RestoreStep>('key');
   const [checkingBackup, setCheckingBackup] = useState(true);
   const [cloudBackupAvailable, setCloudBackupAvailable] = useState(false);
+  const [cloudBackup, setCloudBackup] = useState<CloudWalletBackupRow | null>(null);
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const [recoveryKey, setRecoveryKey] = useState('');
   const [normalizedSecret, setNormalizedSecret] = useState('');
@@ -97,11 +107,19 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
     let isMounted = true;
 
     const checkCloudBackup = async () => {
-      const available = await hasCloudWalletBackup();
+      let backup: CloudWalletBackupRow | null = null;
+      try {
+        backup = await getCloudWalletBackup();
+      } catch {
+        backup = null;
+      }
+
       if (!isMounted) {
         return;
       }
 
+      const available = !!backup;
+      setCloudBackup(backup);
       setCloudBackupAvailable(available);
       setStep(available ? 'cloud' : 'key');
       setCheckingBackup(false);
@@ -124,7 +142,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       setLoading(true);
       setError('');
 
-      const restoredBackup = await restoreCloudWalletBackup(recoveryPassword);
+      const restoredBackup = await restoreCloudWalletBackup(recoveryPassword, cloudBackup || undefined);
       if (restoredBackup.walletAddress !== walletAddress) {
         setError('This cloud backup does not match your existing C-Pay profile.');
         return;
@@ -160,6 +178,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   const handlePinChange = (value: string) => {
     setPin(value);
+    setConfirmPin('');
     setError('');
 
     if (value.length === 6) {
@@ -203,15 +222,17 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
     await AsyncStorage.multiSet(writes);
   };
 
-  const handleConfirmPin = async (value: string) => {
-    setConfirmPin(value);
-    setError('');
-
-    if (value.length !== 6 || submittingRef.current) {
+  const restoreWalletAndContinue = async (pinToConfirm: string) => {
+    if (submittingRef.current) {
       return;
     }
 
-    if (value !== pin) {
+    if (pinToConfirm.length !== 6) {
+      setError('Please enter a 6-digit PIN.');
+      return;
+    }
+
+    if (pinToConfirm !== pin) {
       setError('PINs do not match.');
       setTimeout(() => {
         setConfirmPin('');
@@ -221,10 +242,12 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       return;
     }
 
-    try {
-      submittingRef.current = true;
-      setLoading(true);
+    submittingRef.current = true;
+    setError('');
+    setLoading(true);
+    await waitForUiPaint();
 
+    try {
       const restoredAddress = await recreateWalletFromSecret(normalizedSecret, pin);
       if (restoredAddress !== walletAddress) {
         throw new Error('Restored wallet does not match profile wallet.');
@@ -235,33 +258,56 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
         ['cloud_backup_complete', cloudBackupAvailable ? 'true' : 'false'],
         ['cloud_backup_required', cloudBackupAvailable ? 'false' : 'true'],
       ]);
-      await getMerchantProfile(walletAddress);
       cachePinForSession(pin);
 
-      await supabase
-        .from('users')
-        .update({ biometric_enabled: false })
-        .eq('wallet_address', walletAddress);
+      void getMerchantProfile(walletAddress).catch((syncError) => {
+        console.warn('Restored merchant profile sync failed:', syncError);
+      });
 
-      AlertManager.alert(
-        'Wallet Restored',
-        cloudBackupAvailable
-          ? 'Your profile and wallet have been restored on this device.'
-          : 'Your wallet is restored. Next, create an encrypted cloud backup for future recovery.',
-        [{
-          text: 'Continue',
-          onPress: () => navigation.replace(cloudBackupAvailable ? 'BiometricSetup' : 'CloudBackupSetup'),
-        }],
-        { type: 'success' }
-      );
+      void (async () => {
+        try {
+          const { error: syncError } = await supabase
+            .from('users')
+            .update({ biometric_enabled: false })
+            .eq('wallet_address', walletAddress);
+
+          if (syncError) {
+            console.warn('Restored profile sync failed:', syncError);
+          }
+        } catch (syncError) {
+          console.warn('Restored profile sync failed:', syncError);
+        }
+      })();
+
+      navigation.replace(cloudBackupAvailable ? 'BiometricSetup' : 'CloudBackupSetup');
     } catch (restoreError) {
       console.error('Wallet restore error:', restoreError);
       submittingRef.current = false;
       AlertManager.alert('Restore Failed', 'Could not restore this wallet. Check the recovery key and try again.', undefined, { type: 'error' });
-    } finally {
       setLoading(false);
     }
   };
+
+  const handleConfirmPin = (value: string) => {
+    setConfirmPin(value);
+    setError('');
+
+    if (value.length === 6) {
+      void restoreWalletAndContinue(value);
+    }
+  };
+
+  const renderPinHeader = (title: string, subtitle: string) => (
+    <View style={styles.pinHeader}>
+      <Image
+        source={require('../../assets/cpay_logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.subtitle, styles.pinSubtitle]}>{subtitle}</Text>
+    </View>
+  );
 
   const renderStep = () => {
     if (checkingBackup) {
@@ -277,9 +323,20 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
     if (step === 'pin') {
       return (
         <>
-          <Text style={styles.title}>Create New PIN</Text>
-          <Text style={styles.subtitle}>This PIN will encrypt your restored wallet on this device.</Text>
-          <PINInput value={pin} onChange={handlePinChange} error={error} autoFocus disabled={loading} />
+          {renderPinHeader(
+            'Create New PIN',
+            'Choose 6 digits you can remember. You will use this to unlock your restored C-Pay wallet.'
+          )}
+
+          <View style={styles.infoSection}>
+            <Text style={styles.infoTitle}>Make it secure</Text>
+            <Text style={styles.infoText}>Avoid obvious patterns like 123456 or repeated digits.</Text>
+            <Text style={styles.infoText}>Your restored wallet remains encrypted on this device.</Text>
+          </View>
+
+          <View style={styles.pinSection}>
+            <PINInput value={pin} onChange={handlePinChange} error={error} autoFocus disabled={loading} />
+          </View>
         </>
       );
     }
@@ -287,9 +344,21 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
     if (step === 'confirm') {
       return (
         <>
-          <Text style={styles.title}>Confirm PIN</Text>
-          <Text style={styles.subtitle}>Re-enter your new PIN.</Text>
-          <PINInput value={confirmPin} onChange={handleConfirmPin} error={error} autoFocus disabled={loading} />
+          {renderPinHeader(
+            'Confirm Your PIN',
+            'Re-enter the same 6 digits so we know you typed it correctly.'
+          )}
+
+          <View style={styles.pinSection}>
+            <PINInput value={confirmPin} onChange={handleConfirmPin} error={error} autoFocus disabled={loading} />
+          </View>
+
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Securing your restored wallet...</Text>
+            </View>
+          )}
         </>
       );
     }
@@ -425,16 +494,18 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.iconCircle}>
-          <Ionicons name="key-outline" size={36} color={COLORS.primary} />
-        </View>
+        {step !== 'pin' && step !== 'confirm' && (
+          <View style={styles.iconCircle}>
+            <Ionicons name="key-outline" size={36} color={COLORS.primary} />
+          </View>
+        )}
 
         {renderStep()}
 
-        {loading && (
+        {loading && step !== 'confirm' && (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={COLORS.primary} />
-            <Text style={styles.loadingText}>Restoring wallet...</Text>
+            <Text style={styles.loadingRowText}>Restoring wallet...</Text>
           </View>
         )}
       </ScrollView>
@@ -462,6 +533,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: SPACING.lg,
   },
+  pinHeader: {
+    alignItems: 'center',
+    marginBottom: SPACING.xl * 2,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: SPACING.lg,
+  },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: '800',
@@ -475,6 +556,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: SPACING.lg,
+  },
+  pinSubtitle: {
+    marginBottom: 0,
+  },
+  pinSection: {
+    marginBottom: SPACING.xl,
+  },
+  infoSection: {
+    backgroundColor: COLORS.card,
+    padding: SPACING.lg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: SPACING.xl,
+  },
+  infoTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    lineHeight: 19,
   },
   profileBox: {
     flexDirection: 'row',
@@ -570,7 +677,16 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginTop: SPACING.lg,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    marginTop: SPACING.xl,
+  },
   loadingText: {
+    marginTop: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
+  },
+  loadingRowText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
   },

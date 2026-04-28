@@ -79,6 +79,7 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
 
       if (!wallet) {
         submittingRef.current = false;
+        setLoading(false);
         AlertManager.alert(
           'Wallet Locked',
           'Unlock your wallet with PIN or biometric to create the cloud backup.',
@@ -94,30 +95,15 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
         ['cloud_backup_required', 'false'],
       ]);
 
-      AlertManager.alert(
-        'Cloud Backup Saved',
-        fromSettings
-          ? 'Your encrypted wallet backup has been updated.'
-          : 'Your wallet can now be restored after email verification using this recovery password.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              if (fromSettings) {
-                navigation.goBack();
-              } else {
-                navigation.replace('BiometricSetup');
-              }
-            },
-          },
-        ],
-        { type: 'success' }
-      );
+      if (fromSettings) {
+        navigation.goBack();
+      } else {
+        navigation.replace('BiometricSetup');
+      }
     } catch (backupError: any) {
       console.error('Cloud backup setup error:', backupError);
       submittingRef.current = false;
       setError(backupError?.message || 'Cloud backup could not be saved. Please try again.');
-    } finally {
       setLoading(false);
     }
   };

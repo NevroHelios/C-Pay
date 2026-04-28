@@ -30,7 +30,7 @@ import { Card, Button } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
 import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
-import { clearBiometricBackup, clearSessionPin } from '../services/wallet';
+import { clearBiometricBackup, clearSessionPin, hasBiometricBackup } from '../services/wallet';
 import { getExplorerUrl } from '../services/blockchain';
 import { generatePaymentQR } from '../utils/qrCode';
 
@@ -53,6 +53,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [merchantStatus, setMerchantStatus] = useState<boolean>(false);
   const [businessName, setBusinessName] = useState<string>('');
   const [biometricEnabled, setBiometricEnabled] = useState<boolean>(false);
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean>(false);
+  const [biometricSaving, setBiometricSaving] = useState<boolean>(false);
   const [biometricType, setBiometricType] = useState<string>('Biometric');
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [exportedKey, setExportedKey] = useState<ExportedKey | null>(null);
   const [showExportedKey, setShowExportedKey] = useState(false);
   const qrCodeRef = useRef<any>(null);
+  const biometricSavingRef = useRef(false);
 
   useEffect(() => {
     loadWalletAddress();
@@ -144,17 +147,50 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const syncBiometricPreference = (enabled: boolean) => {
+    void (async () => {
+      try {
+        const address = await AsyncStorage.getItem('wallet_address');
+        if (!address) {
+          return;
+        }
+
+        const { error } = await supabase
+          .from('users')
+          .update({ biometric_enabled: enabled })
+          .eq('wallet_address', address);
+
+        if (error) {
+          console.log('Failed to sync biometric preference:', error);
+        }
+      } catch (error) {
+        console.log('Failed to sync biometric preference:', error);
+      }
+    })();
+  };
+
   const loadSettings = async () => {
-    const biometricSetting = await AsyncStorage.getItem('biometric_enabled');
-    setBiometricEnabled(biometricSetting === 'true');
-    
-    const available = await isBiometricAvailable();
-    if (available) {
-      const type = await getBiometricType();
-      setBiometricType(type);
+    const [biometricSetting, available, type, backupAvailable, notifSetting] = await Promise.all([
+      AsyncStorage.getItem('biometric_enabled'),
+      isBiometricAvailable(),
+      getBiometricType(),
+      hasBiometricBackup(),
+      AsyncStorage.getItem('notifications_enabled'),
+    ]);
+
+    setBiometricType(type);
+    setBiometricAvailable(available);
+
+    if (!biometricSavingRef.current) {
+      const biometricReady = biometricSetting === 'true' && available && backupAvailable;
+      setBiometricEnabled(biometricReady);
+
+      if (biometricSetting === 'true' && !biometricReady) {
+        await AsyncStorage.setItem('biometric_enabled', 'false');
+        syncBiometricPreference(false);
+      }
     }
-    
-    const notifSetting = await AsyncStorage.getItem('notifications_enabled');
+
     setNotificationsEnabled(notifSetting !== 'false');
   };
 
@@ -508,23 +544,56 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const handleToggleBiometric = async (value: boolean) => {
-    if (value) {
-      const available = await isBiometricAvailable();
-      if (!available) {
-        AlertManager.alert('Not Available', `${biometricType} is not set up on this device. Please enable it in your device settings.`);
-        return;
-      }
-
-      const enabled = await enableBiometric();
-      if (!enabled) {
-        AlertManager.alert('Not Enabled', 'Biometric unlock was not enabled. Your PIN still works as usual.', undefined, { type: 'info' });
-        return;
-      }
-    } else {
-      await clearBiometricBackup();
+    if (biometricSaving) {
+      return;
     }
+
+    biometricSavingRef.current = true;
+    setBiometricSaving(true);
     setBiometricEnabled(value);
-    await AsyncStorage.setItem('biometric_enabled', value.toString());
+
+    try {
+      if (value) {
+        let available = biometricAvailable;
+        let type = biometricType;
+
+        if (!available) {
+          [available, type] = await Promise.all([
+            isBiometricAvailable(),
+            getBiometricType(),
+          ]);
+          setBiometricAvailable(available);
+          setBiometricType(type);
+        }
+
+        if (!available) {
+          setBiometricEnabled(false);
+          AlertManager.alert('Not Available', `${type} is not set up on this device. Please enable it in your device settings.`);
+          return;
+        }
+
+        const enabled = await enableBiometric({ skipAvailabilityCheck: true });
+        if (!enabled) {
+          setBiometricEnabled(false);
+          AlertManager.alert('Not Enabled', 'Biometric unlock was not enabled. Your PIN still works as usual.', undefined, { type: 'info' });
+          return;
+        }
+
+        await AsyncStorage.setItem('biometric_enabled', 'true');
+        syncBiometricPreference(true);
+      } else {
+        await clearBiometricBackup();
+        await AsyncStorage.setItem('biometric_enabled', 'false');
+        syncBiometricPreference(false);
+      }
+    } catch (error) {
+      setBiometricEnabled(!value);
+      console.error('Biometric setting update failed:', error);
+      AlertManager.alert('Biometric Error', 'Could not update biometric unlock. Please try again.', undefined, { type: 'error' });
+    } finally {
+      biometricSavingRef.current = false;
+      setBiometricSaving(false);
+    }
   };
 
   const handleToggleNotifications = async (value: boolean) => {
@@ -666,12 +735,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
               <View>
                 <Text style={styles.settingLabel}>{biometricType}</Text>
-                <Text style={styles.settingDescription}>Quick unlock with {biometricType.toLowerCase()}</Text>
+                <Text style={styles.settingDescription}>
+                  {biometricSaving ? 'Updating biometric unlock...' : `Quick unlock with ${biometricType.toLowerCase()}`}
+                </Text>
               </View>
             </View>
             <Switch
               value={biometricEnabled}
               onValueChange={handleToggleBiometric}
+              disabled={biometricSaving}
               trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
               thumbColor={biometricEnabled ? COLORS.primary : COLORS.textSecondary}
             />
@@ -855,7 +927,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           
           <View style={styles.settingDivider} />
           
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.0\n\nC-Pay is a closed-pilot payment app using test credits on Stellar testnet.\n\nPilot credits are not real money and have no cash value.\n\n© 2026 C-Pay')}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.3\n\nC-Pay is a closed-pilot payment app using test credits on Stellar testnet.\n\nPilot credits are not real money and have no cash value.\n\n© 2026 C-Pay')}>
             <View style={styles.settingInfo}>
               <Ionicons name="information-circle-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
               <View>
@@ -880,7 +952,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>C-Pay v1.0.0</Text>
+        <Text style={styles.footerText}>C-Pay v1.0.3</Text>
         <Text style={styles.footerSubtext}>Built for closed-pilot test payments</Text>
         <Text style={styles.footerSubtext}>Stellar Testnet</Text>
       </View>

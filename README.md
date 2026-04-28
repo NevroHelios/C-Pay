@@ -667,7 +667,7 @@ The CI pipeline runs on pushes to `main`/`master`, pull requests, and manual `wo
 | `Relayer` | `npm ci`, Node syntax checks, Jest with `--passWithNoTests` |
 | `Blockchain and contract` | `npm ci`, Stellar rail Jest tests, Rust formatting, Soroban contract tests |
 
-The EAS production build workflow is manual only. It supports `android`, `ios`, or `all` as the platform input and is guarded by the repository secret `EAS_TOKEN`. If the secret is not configured, the workflow exits successfully with a clear skip message instead of failing unexpectedly.
+The EAS production build workflow runs automatically for Android APK builds when changes under `App/` are pushed to `main` or `master`. It can also be started manually with `android`, `ios`, or `all` as the platform input. The workflow is guarded by the repository secret `EAS_TOKEN`; if the secret is not configured, it exits successfully with a clear skip message instead of failing unexpectedly.
 
 Before using the production build workflow for releases, configure `EAS_TOKEN`, Android/iOS credentials, and release approval rules in GitHub/EAS.
 
@@ -1144,7 +1144,7 @@ Recovery password entered by user
   ↓
 Rules checked: 12+ chars, uppercase, number, special character
   ↓
-PBKDF2-SHA256 derives a 32-byte key with 120000 iterations
+PBKDF2-SHA256 derives a 32-byte key with 60000 iterations
   ↓
 Stellar secret is encrypted with XChaCha20-Poly1305
   ↓
@@ -1215,7 +1215,7 @@ These policy values are backend `.env` values used by `relayer-service/server.js
 - PIN verifier uses PBKDF2-SHA256.
 - Wallet encryption uses XChaCha20-Poly1305.
 - Cloud wallet backup uses a separate recovery-password-derived key.
-- Cloud backup KDF uses PBKDF2-SHA256 with 120000 iterations.
+- Cloud backup KDF uses PBKDF2-SHA256 with 60000 iterations.
 - Cloud backup stores ciphertext, salt, nonce, and metadata in Supabase, not the recovery password.
 - Biometric backup is optional and device-local.
 - Sign out clears the in-memory PIN session.
@@ -1249,7 +1249,7 @@ The README details above are tied to the current code paths:
 | Email OTP onboarding | `App/src/screens/PhoneVerificationScreen.tsx` uses `sendLoginEmailOTP`, `verifyLoginEmailOTP`, and an 8-digit OTP input. |
 | Supabase email auth helper | `App/src/services/auth.ts` calls `supabase.auth.signInWithOtp({ email })` and verifies with `type: 'email'`. |
 | Local wallet encryption | `App/src/services/wallet.ts` uses `PBKDF2-SHA256` and `XChaCha20-Poly1305` before writing the wallet to SecureStore. |
-| Cloud backup encryption | `App/src/services/cloudWalletBackup.ts` uses `CLOUD_BACKUP_KDF_ITERATIONS = 120000`, `pbkdf2-sha256`, `xchacha20-poly1305`, random salt, random nonce, and Supabase `wallet_backups`. |
+| Cloud backup encryption | `App/src/services/cloudWalletBackup.ts` uses `CLOUD_BACKUP_KDF_ITERATIONS = 60000`, `pbkdf2-sha256`, `xchacha20-poly1305`, random salt, random nonce, and Supabase `wallet_backups`. |
 | Recovery password rules | `App/src/services/cloudWalletBackup.ts` checks length, uppercase, number, and special-character rules; `CloudBackupSetupScreen` shows them inline. |
 | Restore after data loss | `App/src/screens/RestoreWalletScreen.tsx` restores the encrypted cloud backup, asks for a new local PIN, and recreates the local wallet. |
 | Merchant restore | `App/src/services/merchant.ts` calls `get_own_merchant_by_wallet`; merchant dashboard/QR/transactions reload merchant state by restored wallet address. |

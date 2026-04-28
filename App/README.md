@@ -52,7 +52,7 @@ APK is the Android artifact. Apple devices require the iOS production build from
 - Wallets are Stellar keypairs.
 - The Stellar secret key is encrypted before storage with XChaCha20-Poly1305.
 - PIN-derived keys use PBKDF2-SHA256.
-- Cloud backup recovery-password keys use PBKDF2-SHA256 with 120000 iterations.
+- Cloud backup recovery-password keys use PBKDF2-SHA256 with 60000 iterations.
 - Cloud backup ciphertext uses XChaCha20-Poly1305 and stores only salt, nonce, ciphertext, and metadata in Supabase.
 - Raw PINs are not persisted in AsyncStorage.
 - The app keeps only a short-lived in-memory PIN session after successful authentication.

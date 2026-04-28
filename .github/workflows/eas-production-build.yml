@@ -1,6 +1,13 @@
 name: EAS Production Build
 
 on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "App/**"
+      - ".github/workflows/eas-production-build.yml"
   workflow_dispatch:
     inputs:
       platform:
@@ -71,4 +78,5 @@ jobs:
       - name: Trigger EAS production build
         env:
           EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
-        run: npx eas-cli build --platform "${{ inputs.platform }}" --profile production --non-interactive
+          BUILD_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'android' }}
+        run: npx eas-cli build --platform "$BUILD_PLATFORM" --profile production --non-interactive

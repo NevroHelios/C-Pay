@@ -8,10 +8,10 @@ import { supabase } from './supabase';
 import { StellarWallet } from './wallet';
 
 const CLOUD_BACKUP_VERSION = 1;
-const CLOUD_BACKUP_KDF_ITERATIONS = 120000;
+const CLOUD_BACKUP_KDF_ITERATIONS = 60000;
 const CLOUD_BACKUP_PASSWORD_MIN_LENGTH = 12;
 
-type CloudWalletBackupRow = {
+export type CloudWalletBackupRow = {
   id?: string;
   auth_user_id: string;
   wallet_address: string;
@@ -181,9 +181,10 @@ export async function hasCloudWalletBackup(): Promise<boolean> {
 }
 
 export async function restoreCloudWalletBackup(
-  recoveryPassword: string
+  recoveryPassword: string,
+  backupOverride?: CloudWalletBackupRow
 ): Promise<RestoredCloudWalletBackup> {
-  const backup = await getCloudWalletBackup();
+  const backup = backupOverride || (await getCloudWalletBackup());
   if (!backup) {
     throw new Error('No encrypted wallet backup was found for this email.');
   }
