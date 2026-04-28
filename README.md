@@ -17,7 +17,7 @@
 _No crypto knowledge required_
 
 <p align="center">
-  <a href="https://expo.dev/accounts/soumen0818/projects/cryptopay/builds/6cbe0d62-37e5-425d-8ee6-8dfcf0acc44d">
+  <a href="https://expo.dev/accounts/soumen0818/projects/cryptopay/builds/8e46dd81-b007-4299-a323-e3593bab88ff">
     <img src="https://img.shields.io/badge/Download%20APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
   <a href="#quick-start">
