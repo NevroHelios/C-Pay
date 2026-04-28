@@ -20,8 +20,11 @@ _No crypto knowledge required_
   <a href="https://expo.dev/accounts/soumen0818/projects/cryptopay/builds/8e46dd81-b007-4299-a323-e3593bab88ff">
     <img src="https://img.shields.io/badge/Download%20APK-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" />
   </a>
-  <a href="#quick-start">
+  <a href="https://drive.google.com/file/d/1zgbPvRwF3VkCLIEbEEtYytIfsTtc5jrg/view?usp=sharing">
     <img src="https://img.shields.io/badge/Demo%20Video-Watch-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Demo Video" />
+  </a>
+  <a href="https://docs.google.com/spreadsheets/d/1JQ_7-KpTUSlvj9x1c5fqgbnhFPx8JfYAEWUcYOchnA0/edit?usp=sharing">
+    <img src="https://img.shields.io/badge/Feedback%20Sheet-Google-4285F4?style=for-the-badge&logo=googlesheets&logoColor=white" alt="Feedback Sheet" />
   </a>
 </p>
 
@@ -36,6 +39,7 @@ _No crypto knowledge required_
 
 - [Overview](#-overview)
 - [Download APK](#-download-apk)
+- [Feedback Responses](#-feedback-responses)
 - [App Screenshots](#-app-screenshots)
 - [Current Testnet Values](#-current-testnet-values)
 - [Vision](#-vision)
@@ -166,6 +170,17 @@ The production Android profile creates a release APK. iOS builds are separate ar
 > **Note:** This is a closed-pilot testnet app. Use Stellar testnet accounts, testnet XLM, and C-Pay pilot credits only.
 
 </div>
+
+---
+
+## 📝 Feedback Responses
+
+Live response sheet: [C-Pay feedback responses](https://docs.google.com/spreadsheets/d/1JQ_7-KpTUSlvj9x1c5fqgbnhFPx8JfYAEWUcYOchnA0/edit?usp=sharing)
+
+| # | Timestamp | Full Name | Email | Wallet Address | Overall Satisfaction | UI | Speed | Security | Transaction Reliability | Support | Most Used Features | Bug Reported | Issue Details | Recommend Rating | Suggestions |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 28/04/2026 10:44:06 | SHAMPA DAS | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` | 10 | Good (3) | Fair (2) | Excellent (4) | Excellent (4) | Fair (2) | Sending Funds, In-App Crypto Exchange/Swap | No |  | 4 | There is no withdrawal option |
+| 2 | 28/04/2026 12:38:54 | soumen mandal | soumenmandal1080@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | 10 | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Excellent (4) | Sending Funds, Receiving Funds, Checking Balance/History, Staking/Yield Programs, In-App Crypto Exchange/Swap, Other (Please specify below) | No | NaN | 5 | create a StartUp use this |
 
 ---
 
