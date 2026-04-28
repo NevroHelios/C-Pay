@@ -36,6 +36,7 @@ _No crypto knowledge required_
 
 - [Overview](#-overview)
 - [Download APK](#-download-apk)
+- [App Screenshots](#-app-screenshots)
 - [Current Testnet Values](#-current-testnet-values)
 - [Vision](#-vision)
 - [Key Features](#-key-features)
@@ -106,6 +107,24 @@ _No crypto knowledge required_
 </tr>
 </table>
 
+### Planned Feature Improvements
+
+C-Pay is intentionally running as a closed testnet pilot today. The current app proves the wallet, QR payment, merchant, recovery, and relayer flows with pilot credits. The production direction adds stronger identity, fiat rails, and withdrawal support before any real-money rollout.
+
+| Area | Current Pilot | Planned Production Direction |
+| --- | --- | --- |
+| User verification | Email OTP through Supabase for onboarding and account recovery | Phone OTP verification through a production SMS provider, with email as an additional recovery/contact channel |
+| User KYC | Not required for pilot credits because they have no cash value | User KYC before real fiat add-money, withdrawals, higher limits, or regulated payment features |
+| Merchant checks | Merchant profile and contract registration for QR payment acceptance | Merchant KYS/KYB review before accepting real customer payments, including business identity, settlement details, and risk checks |
+| Receive money | Users and merchants can receive pilot credits through wallet address, C-Pay ID, and QR flows | Receive from all approved sources supported by C-Pay, including app-to-app payments, merchant QR, and future fiat/on-ramp sources |
+| Add Money | Closed-pilot claim flow adds test credits for demo and testing | Fiat bridge flow where users pay INR or another supported fiat source, then C-Pay processes the requested value into the app after verification |
+| Withdrawals | Not enabled in the pilot app | Withdrawal flow for eligible users and merchants after KYC/KYS checks, balance validation, risk review, and supported settlement rail availability |
+| Limits and risk | Basic app-side limits for pilot payments | Compliance-aware limits based on KYC/KYS status, transaction history, source of funds, and operational risk rules |
+
+The guiding rule is simple: pilot credits are for testing the experience; real-money features require verified users, verified merchants, compliant fiat processing, and clear settlement controls.
+
+> **Support the journey:** C-Pay is still evolving toward stronger compliance, better payment rails, and real market fit. Feedback, technical help, product guidance, partnerships, and pilot testing support are welcome to improve the app and shape it into something people can trust and use every day.
+
 ### 📊 Current Project Snapshot
 
 ```text
@@ -147,6 +166,37 @@ The production Android profile creates a release APK. iOS builds are separate ar
 > **Note:** This is a closed-pilot testnet app. Use Stellar testnet accounts, testnet XLM, and C-Pay pilot credits only.
 
 </div>
+
+---
+
+## 📸 App Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="public/getstarted.jpeg" alt="Get started screen" width="180" /><br /><sub>Get Started</sub></td>
+    <td align="center"><img src="public/email_input.jpeg" alt="Email input screen" width="180" /><br /><sub>Email OTP</sub></td>
+    <td align="center"><img src="public/pin_input.jpeg" alt="PIN input screen" width="180" /><br /><sub>Create PIN</sub></td>
+    <td align="center"><img src="public/restor_backup.jpeg" alt="Restore backup screen" width="180" /><br /><sub>Restore Backup</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/loading.jpeg" alt="Loading screen" width="180" /><br /><sub>Loading</sub></td>
+    <td align="center"><img src="public/home_screen.jpeg" alt="Home screen" width="180" /><br /><sub>Home</sub></td>
+    <td align="center"><img src="public/send_screen.jpeg" alt="Send screen" width="180" /><br /><sub>Send</sub></td>
+    <td align="center"><img src="public/send%20money_screen.jpeg" alt="Send money screen" width="180" /><br /><sub>Send Money</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/user_qr.jpeg" alt="User QR screen" width="180" /><br /><sub>User QR</sub></td>
+    <td align="center"><img src="public/merchant_qr.jpeg" alt="Merchant QR screen" width="180" /><br /><sub>Merchant QR</sub></td>
+    <td align="center"><img src="public/merchant_dashboard.jpeg" alt="Merchant dashboard screen" width="180" /><br /><sub>Merchant Dashboard</sub></td>
+    <td align="center"><img src="public/profile.jpeg" alt="Profile screen" width="180" /><br /><sub>Profile</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/profile_details_screen.jpeg" alt="Profile details screen" width="180" /><br /><sub>Profile Details</sub></td>
+    <td align="center"><img src="public/transection_details.jpeg" alt="Transaction details screen" width="180" /><br /><sub>Transaction Details</sub></td>
+    <td align="center"><img src="public/payment_sucessful_screen.jpeg" alt="Payment successful screen" width="180" /><br /><sub>Payment Successful</sub></td>
+    <td align="center"><img src="public/failed_payment.jpeg" alt="Failed payment screen" width="180" /><br /><sub>Failed Payment</sub></td>
+  </tr>
+</table>
 
 ---
 
