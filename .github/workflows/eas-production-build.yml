@@ -25,30 +25,31 @@ permissions:
 
 jobs:
   check-eas-token:
-    name: Check EAS token
+    name: Check Expo token
     runs-on: ubuntu-latest
     outputs:
-      has_token: ${{ steps.eas-token.outputs.has_token }}
+      has_token: ${{ steps.expo-token.outputs.has_token }}
     steps:
       - name: Check secret
-        id: eas-token
+        id: expo-token
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
         run: |
-          if [ -n "$EAS_TOKEN" ]; then
+          if [ -n "$EXPO_TOKEN" ] || [ -n "$EAS_TOKEN" ]; then
             echo "has_token=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
           fi
 
   missing-eas-token:
-    name: EAS token not configured
+    name: Expo token not configured
     runs-on: ubuntu-latest
     needs: check-eas-token
     if: ${{ needs.check-eas-token.outputs.has_token != 'true' }}
     steps:
       - name: Skip build
-        run: echo "Skipping production build because repository secret EAS_TOKEN is not configured."
+        run: echo "Skipping production build because repository secret EXPO_TOKEN or EAS_TOKEN is not configured."
 
   production-build:
     name: Production app build
@@ -77,6 +78,6 @@ jobs:
 
       - name: Trigger EAS production build
         env:
-          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN || secrets.EAS_TOKEN }}
           BUILD_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'android' }}
         run: npx eas-cli build --platform "$BUILD_PLATFORM" --profile production --non-interactive

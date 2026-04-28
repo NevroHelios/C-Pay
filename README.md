@@ -667,9 +667,9 @@ The CI pipeline runs on pushes to `main`/`master`, pull requests, and manual `wo
 | `Relayer` | `npm ci`, Node syntax checks, Jest with `--passWithNoTests` |
 | `Blockchain and contract` | `npm ci`, Stellar rail Jest tests, Rust formatting, Soroban contract tests |
 
-The EAS production build workflow runs automatically for Android APK builds when changes under `App/` are pushed to `main` or `master`. It can also be started manually with `android`, `ios`, or `all` as the platform input. The workflow is guarded by the repository secret `EAS_TOKEN`; if the secret is not configured, it exits successfully with a clear skip message instead of failing unexpectedly.
+The EAS production build workflow runs automatically for Android APK builds when changes under `App/` are pushed to `main` or `master`. It can also be started manually with `android`, `ios`, or `all` as the platform input. The workflow is guarded by the repository secret `EXPO_TOKEN` and also accepts an existing `EAS_TOKEN` as a fallback; if neither secret is configured, it exits successfully with a clear skip message instead of failing unexpectedly.
 
-Before using the production build workflow for releases, configure `EAS_TOKEN`, Android/iOS credentials, and release approval rules in GitHub/EAS.
+Before using the production build workflow for releases, configure `EXPO_TOKEN`, Android/iOS credentials, and release approval rules in GitHub/EAS.
 
 ---
 
