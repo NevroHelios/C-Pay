@@ -4,20 +4,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
-  Platform,
+  useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
 import { Camera, CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { parsePaymentQR, validatePaymentQR } from '../utils/qrCode';
 import { isValidAccountId } from '../services/blockchain';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
-
-const { width } = Dimensions.get('window');
-const SCANNER_SIZE = width * 0.7;
 
 interface ScanScreenProps {
   navigation: any;
@@ -25,9 +22,14 @@ interface ScanScreenProps {
 }
 
 export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
+  const scannerSize = Math.min(width * 0.7, height * 0.42, 320);
+  const headerTopPadding = Math.max(insets.top + SPACING.md, SPACING.xl);
+  const footerBottomPadding = Math.max(insets.bottom + SPACING.md, SPACING.xl);
 
   useEffect(() => {
     checkCameraPermission();
@@ -184,13 +186,13 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => 
       />
       
       {/* Header - Positioned absolutely over camera */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTopPadding }]}>
         <Text style={styles.headerText}>Scan QR Code to Pay</Text>
       </View>
 
       {/* Scanner Overlay - Positioned absolutely over camera */}
       <View style={styles.overlay}>
-        <View style={styles.scannerContainer}>
+        <View style={[styles.scannerContainer, { width: scannerSize, height: scannerSize }]}>
           <View style={styles.scannerFrame}>
             {/* Corner borders */}
             <View style={[styles.corner, styles.cornerTopLeft]} />
@@ -202,7 +204,7 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => 
       </View>
 
       {/* Instructions - Positioned absolutely over camera */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: footerBottomPadding }]}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={COLORS.primary} />
@@ -243,7 +245,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: Platform.OS === 'ios' ? 60 : SPACING.xl,
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
     backgroundColor: 'rgba(0,0,0,0.7)',
@@ -265,8 +266,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scannerContainer: {
-    width: SCANNER_SIZE,
-    height: SCANNER_SIZE,
+    maxWidth: '82%',
+    maxHeight: '42%',
   },
   scannerFrame: {
     width: '100%',
@@ -313,7 +314,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: SPACING.lg,
-    paddingBottom: Platform.OS === 'ios' ? 60 : SPACING.xl,
     paddingTop: SPACING.md,
     backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',

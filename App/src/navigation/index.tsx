@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { PhoneVerificationScreen } from '../screens/PhoneVerificationScreen';
@@ -32,7 +33,7 @@ import { PaymentProcessingScreen } from '../screens/PaymentProcessingScreen';
 import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { PaymentFailureScreen } from '../screens/PaymentFailureScreen';
 import { PaymentQRData } from '../utils/qrCode';
-import { COLORS } from '../constants/theme';
+import { COLORS, SPACING } from '../constants/theme';
 
 type RootStackParamList = {
   Splash: undefined;
@@ -88,71 +89,83 @@ type MainTabsParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
-const MainTabs = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: true,
-      tabBarActiveTintColor: COLORS.primary,
-      tabBarInactiveTintColor: '#9ca3af',
-      tabBarStyle: {
-        borderTopWidth: 1,
-        borderTopColor: '#e5e7eb',
-        paddingBottom: 5,
-        paddingTop: 5,
-        height: 60,
-        backgroundColor: '#ffffff',
-      },
-      tabBarShowLabel: route.name !== 'ScanPlaceholder',
-    })}
-  >
-    <Tab.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{
-        tabBarLabel: 'Home',
-        tabBarIcon: ({ color, focused }) => (
-          <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
-        ),
-        headerTitle: 'C-Pay',
-      }}
-    />
-    <Tab.Screen
-      name="ScanPlaceholder"
-      component={View}
-      listeners={({ navigation }) => ({
-        tabPress: (e) => {
-          e.preventDefault();
-          const parent = navigation.getParent();
-          if (parent) {
-            parent.navigate('Scan' as never);
-          }
+const TAB_BAR_CONTENT_HEIGHT = 56;
+const MIN_TAB_BAR_BOTTOM_PADDING = SPACING.sm;
+
+const MainTabs = () => {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, MIN_TAB_BAR_BOTTOM_PADDING);
+  const tabBarHeight = TAB_BAR_CONTENT_HEIGHT + bottomPadding;
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: true,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: '#9ca3af',
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: {
+          borderTopWidth: 1,
+          borderTopColor: '#e5e7eb',
+          paddingTop: SPACING.xs,
+          paddingBottom: bottomPadding,
+          height: tabBarHeight,
+          backgroundColor: '#ffffff',
         },
+        tabBarItemStyle: styles.tabBarItem,
+        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarShowLabel: route.name !== 'ScanPlaceholder',
       })}
-      options={{
-        tabBarLabel: '',
-        tabBarIcon: ({ focused }) => (
-          <View style={styles.scanButton}>
-            <View style={[styles.scanButtonInner, focused && styles.scanButtonFocused]}>
-              <Ionicons name="scan" size={26} color={COLORS.textInverse} />
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+          ),
+          headerTitle: 'C-Pay',
+        }}
+      />
+      <Tab.Screen
+        name="ScanPlaceholder"
+        component={View}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            const parent = navigation.getParent();
+            if (parent) {
+              parent.navigate('Scan' as never);
+            }
+          },
+        })}
+        options={{
+          tabBarLabel: '',
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.scanButton}>
+              <View style={[styles.scanButtonInner, focused && styles.scanButtonFocused]}>
+                <Ionicons name="scan" size={26} color={COLORS.textInverse} />
+              </View>
             </View>
-          </View>
-        ),
-        headerShown: false,
-      }}
-    />
-    <Tab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{
-        tabBarLabel: 'Profile',
-        tabBarIcon: ({ color, focused }) => (
-          <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
-        ),
-        headerTitle: 'Profile',
-      }}
-    />
-  </Tab.Navigator>
-);
+          ),
+          headerShown: false,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+          ),
+          headerTitle: 'Profile',
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
 
 export const Navigation = () => {
   return (
@@ -283,8 +296,17 @@ export const Navigation = () => {
 };
 
 const styles = StyleSheet.create({
+  tabBarItem: {
+    justifyContent: 'center',
+    minWidth: 64,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 0,
+  },
   scanButton: {
-    top: -20,
+    top: -18,
     justifyContent: 'center',
     alignItems: 'center',
   },
