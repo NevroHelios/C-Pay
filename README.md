@@ -182,6 +182,32 @@ Want to try C-Pay and share feedback? Fill out the [C-Pay feedback form](https:/
 
 Live response sheet: [C-Pay feedback responses](https://docs.google.com/spreadsheets/d/1JQ_7-KpTUSlvj9x1c5fqgbnhFPx8JfYAEWUcYOchnA0/edit?usp=sharing)
 
+### Table 1: Pilot Users
+
+| User Name | User Email | User Wallet Address |
+| --- | --- | --- |
+| SHAMPA DAS | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` |
+| soumen mandal | soumenmandal1080@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` |
+| SUMAN PRADHAN | prasuman01@gamil.com | `GCIVVA5M5WCBTWZ4AXBX6W4THTXAHHCUP27VFQIIVTGU7HLLLODZ6AXH` |
+| sam mandal | kinemaster1444@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` |
+| Arka Dash | dasharka05@gmail.com | `GAD3FPRJ7K2FFX7JBRIITVJP2A4OLIO4M3AKABEF4HFG732RESVFYV6K` |
+
+### Table 2: User Feedback Implementation
+
+| User Name | User Email | User Wallet Address | User Feedback | Commit ID |
+| --- | --- | --- | --- | --- |
+| SHAMPA DAS | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` | There is no withdrawal option. | `b701f6f` |
+| soumen mandal | soumenmandal1080@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | create a StartUp use this | `TBD` |
+| SUMAN PRADHAN | prasuman01@gamil.com | `GCIVVA5M5WCBTWZ4AXBX6W4THTXAHHCUP27VFQIIVTGU7HLLLODZ6AXH` | No change requested. | `N/A` |
+| sam mandal | kinemaster1444@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | No written feedback provided. | `N/A` |
+| Arka Dash | dasharka05@gmail.com | `GAD3FPRJ7K2FFX7JBRIITVJP2A4OLIO4M3AKABEF4HFG732RESVFYV6K` | Make the dark theme default and make the wallet address more obvious. Otherwise it was a great experience. | `a192c5f`, `TBD` |
+
+`TBD` means no matching implementation commit was found in the current git history, so the commit ID can be added after that feedback is implemented.
+`b701f6f` documents withdrawal as a planned production feature; app implementation is pending.
+`a192c5f` includes the profile wallet-address reveal; dark theme default is still pending.
+
+### Full Feedback Response Export
+
 | # | Timestamp | Full Name | Form Email | Provided Email | Wallet Address | Overall Satisfaction | UI | Speed | Security | Transaction Reliability | Support | Most Used Features | Bug Reported | Issue Details | Recommend Rating | Suggestions |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 28/04/2026 10:44:06 | SHAMPA DAS | dasshampa2022@gmail.com | dasshampa2022@gmail.com | `GCXPJ4SJDOSM6IGJPSFUWC4QQMA33S6M456TC32RU2LZ65OJHKD7YWVC` | 10 | Good (3) | Fair (2) | Excellent (4) | Excellent (4) | Fair (2) | Sending Funds, In-App Crypto Exchange/Swap | No |  | 4 | There is no withdrawal option |
