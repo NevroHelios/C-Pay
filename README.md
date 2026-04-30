@@ -202,7 +202,7 @@ Live response sheet: [C-Pay feedback responses](https://docs.google.com/spreadsh
 | SUMAN PRADHAN | prasuman01@gamil.com | `GCIVVA5M5WCBTWZ4AXBX6W4THTXAHHCUP27VFQIIVTGU7HLLLODZ6AXH` | No change requested. | `N/A` |
 | sam mandal | kinemaster1444@gmail.com | `GBGJS2UIEF2DYN3L67P2A7X62M4WK72JGTF7ABCOQL75UYHMWYLFRI4S` | No written feedback provided. | `N/A` |
 | Arka Dash | dasharka05@gmail.com | `GAD3FPRJ7K2FFX7JBRIITVJP2A4OLIO4M3AKABEF4HFG732RESVFYV6K` | Make the dark theme default and make the wallet address more obvious. Otherwise it was a great experience. | `a192c5f`, `TBD` |
-| Souvik Mandal | souvikmandals10@gmail.com | `GAKUELFFUKSAJMTECN2SVXDRJOUJXDE27OPTD57SA65KJ6AU32SXKF27` | Overall app experience is good. But suggestions will be more on UI perspective. | `TBD` |
+| Souvik Mandal | souvikmandals10@gmail.com | `GAKUELFFUKSAJMTECN2SVXDRJOUJXDE27OPTD57SA65KJ6AU32SXKF27` | Overall app experience is good. But suggestions will be more on UI perspective. | `3e1b812` |
 
 > **Withdrawal note:** Withdrawal is planned as a future implementation because it requires real-money interaction, banking/payment authority approval, compliance review, and proper mentoring before production rollout. The current C-Pay app is a closed-pilot Stellar testnet app, so pilot credits have no real cash value.
 
