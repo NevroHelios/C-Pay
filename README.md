@@ -1654,6 +1654,8 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 
 ## 🤝 Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, PR expectations, UX guidelines, and security rules.
+
 1. Keep mobile app secrets out of `App/.env`.
 2. Keep Stellar `S...` secret seeds out of committed docs and source.
 3. Update `Blockchain/contract-ids.json` after contract redeployments.
