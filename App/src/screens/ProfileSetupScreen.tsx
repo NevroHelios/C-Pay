@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Button } from '../components';
+import { Button, OnboardingProgress } from '../components';
 import { AlertManager } from '../utils/alert';
 import { generateCPayId } from '../utils/cpayId';
 
@@ -210,6 +210,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
     }
   };
 
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -220,6 +221,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <OnboardingProgress currentStep={3} flowType="setup" />
         <LinearGradient
           colors={[COLORS.primary, COLORS.primaryDark]}
           start={{ x: 0, y: 0 }}

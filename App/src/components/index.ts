@@ -7,3 +7,4 @@ export { EmptyState } from './EmptyState';
 export { SuccessAnimation } from './SuccessAnimation';
 export { PINDialog } from './PINDialog';
 export { CustomAlert, CustomAlertProvider, showCustomAlert } from './CustomAlert';
+export { OnboardingProgress } from './OnboardingProgress';

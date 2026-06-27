@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { PhoneVerificationScreen } from '../screens/PhoneVerificationScreen';
+import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
 import { CreatePINScreen } from '../screens/CreatePINScreen';
 import { ConfirmPINScreen } from '../screens/ConfirmPINScreen';
 import { ChangePINScreen } from '../screens/ChangePINScreen';
@@ -38,14 +38,14 @@ import { COLORS, SPACING } from '../constants/theme';
 type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
-  PhoneVerification: undefined;
+  EmailVerification: undefined;
   CreatePIN: { phoneNumber: string };
   ConfirmPIN: { pin: string; phoneNumber: string };
   ProfileSetup: { walletAddress: string; phoneNumber: string };
   ChangePIN: undefined;
   ForgotPIN: undefined;
   CloudBackupSetup: { fromSettings?: boolean } | undefined;
-  BiometricSetup: undefined;
+  BiometricSetup: { flowType?: 'setup' | 'restore' } | undefined;
   RestoreWallet: {
     verifiedEmail?: string;
     walletAddress: string;
@@ -178,7 +178,7 @@ export const Navigation = () => {
       >
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        <Stack.Screen name="PhoneVerification" component={PhoneVerificationScreen} />
+        <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
         <Stack.Screen name="CreatePIN" component={CreatePINScreen} />
         <Stack.Screen name="ConfirmPIN" component={ConfirmPINScreen} />
         <Stack.Screen 

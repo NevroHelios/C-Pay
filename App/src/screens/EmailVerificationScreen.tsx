@@ -19,6 +19,7 @@ import { hasWallet } from '../services/wallet';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
+import { OnboardingProgress } from '../components';
 import {
   PILOT_ACCESS_REQUIRED,
   PILOT_NOTICE_TEXT,
@@ -49,11 +50,11 @@ type ExistingUserProfile = {
   phone_number?: string | null;
 };
 
-interface PhoneVerificationScreenProps {
+interface EmailVerificationScreenProps {
   navigation: any;
 }
 
-export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = ({
+export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({
   navigation,
 }) => {
   const [emailAddress, setEmailAddress] = useState('');
@@ -174,8 +175,6 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
       if (result.remainingAttempts !== undefined) {
         setRemainingAttempts(result.remainingAttempts);
       }
-      // Don't show alert to avoid dismissing keyboard
-      // The UI transition to OTP input stage is sufficient feedback
     } else {
       if (result.resetTime) {
         AlertManager.alert(
@@ -274,11 +273,13 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <OnboardingProgress currentStep={1} flowType="setup" />
+
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
@@ -290,7 +291,7 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
               </Text>
               <Text style={styles.subtitle}>
                 {step === 'email'
-                  ? 'Enter your email address'
+                  ? 'Enter your email address to continue'
                   : `Code sent to ${emailAddress}`}
               </Text>
             </View>
@@ -311,164 +312,164 @@ export const PhoneVerificationScreen: React.FC<PhoneVerificationScreenProps> = (
               </View>
             )}
 
-        {/* Input Section */}
-        {step === 'email' ? (
-          <View style={styles.inputSection}>
-            <View style={styles.pilotNotice}>
-              <Ionicons name="flask-outline" size={18} color={COLORS.info} />
-              <View style={styles.pilotNoticeContent}>
-                <Text style={styles.pilotNoticeTitle}>{PILOT_NOTICE_TITLE}</Text>
-                <Text style={styles.pilotNoticeText}>{PILOT_NOTICE_TEXT}</Text>
-              </View>
-            </View>
-
-            {PILOT_ACCESS_REQUIRED && (
-              <TextInput
-                style={styles.pilotCodeInput}
-                value={pilotAccessCode}
-                onChangeText={setPilotAccessCode}
-                placeholder="Pilot invite code"
-                placeholderTextColor={COLORS.textTertiary}
-                autoCapitalize="characters"
-                autoCorrect={false}
-              />
-            )}
-
-            <View style={styles.emailInputContainer}>
-              <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.emailInputIcon} />
-              <TextInput
-                style={styles.emailInput}
-                value={emailAddress}
-                onChangeText={setEmailAddress}
-                placeholder="Enter email address"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                maxLength={254}
-                autoFocus
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, (loading || remainingAttempts === 0) && styles.buttonDisabled]}
-              onPress={handleSendOTP}
-              disabled={loading || remainingAttempts === 0}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.card} />
-              ) : (
-                <Text style={styles.buttonText}>Send Email Code</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.inputSection}>
-            <View
-              style={styles.otpInputCard}
-              accessibilityLabel="Enter verification code"
-            >
-              <View style={styles.otpVisualLayer} pointerEvents="none">
-                <View style={styles.otpContainer}>
-                  {OTP_DIGITS.map((index) => {
-                    const isActive = !loading && otpFocused && (otp.length === index || (otp.length === EMAIL_OTP_LENGTH && index === EMAIL_OTP_LENGTH - 1));
-                    const isFilled = Boolean(otp[index]);
-
-                    return (
-                      <View
-                        key={index}
-                        style={[
-                          styles.otpBox,
-                          isActive && styles.otpBoxFocused,
-                          isFilled && styles.otpBoxFilled,
-                          loading && styles.otpBoxDisabled,
-                        ]}
-                      >
-                        <Text style={[
-                          styles.otpDigit,
-                          isFilled && styles.otpDigitFilled,
-                        ]}>
-                          {otp[index] || ''}
-                        </Text>
-                      </View>
-                    );
-                  })}
+            {/* Input Section */}
+            {step === 'email' ? (
+              <View style={styles.inputSection}>
+                <View style={styles.pilotNotice}>
+                  <Ionicons name="flask-outline" size={18} color={COLORS.info} />
+                  <View style={styles.pilotNoticeContent}>
+                    <Text style={styles.pilotNoticeTitle}>{PILOT_NOTICE_TITLE}</Text>
+                    <Text style={styles.pilotNoticeText}>{PILOT_NOTICE_TEXT}</Text>
+                  </View>
                 </View>
 
-                <View style={styles.otpStatusRow}>
-                  <Text style={styles.otpHint}>
-                    {loading
-                      ? 'Verifying code...'
-                      : otp.length === 0
-                        ? `Waiting for ${EMAIL_OTP_LENGTH}-digit code`
-                        : otp.length < EMAIL_OTP_LENGTH
-                          ? `${EMAIL_OTP_LENGTH - otp.length} digit${EMAIL_OTP_LENGTH - otp.length === 1 ? '' : 's'} remaining`
-                          : 'Code ready'}
-                  </Text>
-                  {loading && (
-                    <ActivityIndicator size="small" color={COLORS.primary} />
+                {PILOT_ACCESS_REQUIRED && (
+                  <TextInput
+                    style={styles.pilotCodeInput}
+                    value={pilotAccessCode}
+                    onChangeText={setPilotAccessCode}
+                    placeholder="Pilot invite code"
+                    placeholderTextColor={COLORS.textTertiary}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                )}
+
+                <View style={styles.emailInputContainer}>
+                  <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} style={styles.emailInputIcon} />
+                  <TextInput
+                    style={styles.emailInput}
+                    value={emailAddress}
+                    onChangeText={setEmailAddress}
+                    placeholder="Enter email address"
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    maxLength={254}
+                    autoFocus
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, (loading || remainingAttempts === 0) && styles.buttonDisabled]}
+                  onPress={handleSendOTP}
+                  disabled={loading || remainingAttempts === 0}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.card} />
+                  ) : (
+                    <Text style={styles.buttonText}>Send Email Code</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.inputSection}>
+                <View
+                  style={styles.otpInputCard}
+                  accessibilityLabel="Enter verification code"
+                >
+                  <View style={styles.otpVisualLayer} pointerEvents="none">
+                    <View style={styles.otpContainer}>
+                      {OTP_DIGITS.map((index) => {
+                        const isActive = !loading && otpFocused && (otp.length === index || (otp.length === EMAIL_OTP_LENGTH && index === EMAIL_OTP_LENGTH - 1));
+                        const isFilled = Boolean(otp[index]);
+
+                        return (
+                          <View
+                            key={index}
+                            style={[
+                              styles.otpBox,
+                              isActive && styles.otpBoxFocused,
+                              isFilled && styles.otpBoxFilled,
+                              loading && styles.otpBoxDisabled,
+                            ]}
+                          >
+                            <Text style={[
+                              styles.otpDigit,
+                              isFilled && styles.otpDigitFilled,
+                            ]}>
+                              {otp[index] || ''}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    <View style={styles.otpStatusRow}>
+                      <Text style={styles.otpHint}>
+                        {loading
+                          ? 'Verifying code...'
+                          : otp.length === 0
+                            ? `Waiting for ${EMAIL_OTP_LENGTH}-digit code`
+                            : otp.length < EMAIL_OTP_LENGTH
+                              ? `${EMAIL_OTP_LENGTH - otp.length} digit${EMAIL_OTP_LENGTH - otp.length === 1 ? '' : 's'} remaining`
+                              : 'Code ready'}
+                      </Text>
+                      {loading && (
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                      )}
+                    </View>
+                  </View>
+
+                  <TextInput
+                    ref={otpInputRef}
+                    style={styles.otpNativeInput}
+                    value={otp}
+                    onChangeText={handleOtpChange}
+                    onFocus={() => setOtpFocused(true)}
+                    onBlur={() => setOtpFocused(false)}
+                    keyboardType="number-pad"
+                    maxLength={EMAIL_OTP_LENGTH}
+                    autoFocus
+                    editable={!loading}
+                    caretHidden
+                    showSoftInputOnFocus
+                    selectionColor="transparent"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    importantForAutofill="yes"
+                    accessibilityLabel="Verification code"
+                  />
+                </View>
+
+                {/* Timer and Resend */}
+                <View style={styles.timerContainer}>
+                  {timer > 0 ? (
+                    <Text style={styles.timerText}>Resend code in {timer}s</Text>
+                  ) : (
+                    <TouchableOpacity onPress={handleResendOTP}>
+                      <Text style={styles.resendText}>Resend code</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
-              </View>
 
-              <TextInput
-                ref={otpInputRef}
-                style={styles.otpNativeInput}
-                value={otp}
-                onChangeText={handleOtpChange}
-                onFocus={() => setOtpFocused(true)}
-                onBlur={() => setOtpFocused(false)}
-                keyboardType="number-pad"
-                maxLength={EMAIL_OTP_LENGTH}
-                autoFocus
-                editable={!loading}
-                caretHidden
-                showSoftInputOnFocus
-                selectionColor="transparent"
-                textContentType="oneTimeCode"
-                autoComplete="one-time-code"
-                importantForAutofill="yes"
-                accessibilityLabel="Verification code"
-              />
-            </View>
-
-            {/* Timer and Resend */}
-            <View style={styles.timerContainer}>
-              {timer > 0 ? (
-                <Text style={styles.timerText}>Resend code in {timer}s</Text>
-              ) : (
-                <TouchableOpacity onPress={handleResendOTP}>
-                  <Text style={styles.resendText}>Resend code</Text>
+                <TouchableOpacity
+                  style={[styles.button, (loading || otp.length !== EMAIL_OTP_LENGTH) && styles.buttonDisabled]}
+                  onPress={handleVerifyOTP}
+                  disabled={loading || otp.length !== EMAIL_OTP_LENGTH}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.card} />
+                  ) : (
+                    <Text style={styles.buttonText}>Verify Code</Text>
+                  )}
                 </TouchableOpacity>
-              )}
-            </View>
 
-            <TouchableOpacity
-              style={[styles.button, (loading || otp.length !== EMAIL_OTP_LENGTH) && styles.buttonDisabled]}
-              onPress={handleVerifyOTP}
-              disabled={loading || otp.length !== EMAIL_OTP_LENGTH}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.card} />
-              ) : (
-                <Text style={styles.buttonText}>Verify Code</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Back button */}
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                setStep('email');
-                resetOtpEntry();
-              }}
-            >
-              <Text style={styles.backButtonText}>Change Email</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+                {/* Back button */}
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => {
+                    setStep('email');
+                    resetOtpEntry();
+                  }}
+                >
+                  <Text style={styles.backButtonText}>Change Email</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Security Notice */}
             <View style={styles.securityNotice}>
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SPACING.lg,
-    paddingTop: isSmallDevice ? SPACING.lg : SPACING.xl * 2,
+    paddingTop: isSmallDevice ? SPACING.xs : SPACING.md,
   },
   header: {
     alignItems: 'center',

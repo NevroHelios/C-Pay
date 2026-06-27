@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../components';
+import { Button, OnboardingProgress } from '../components';
 import {
   createCloudWalletBackup,
   getRecoveryPasswordRules,
@@ -115,11 +115,12 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.iconCircle}>
+           contentContainerStyle={styles.content}
+           keyboardShouldPersistTaps="handled"
+           showsVerticalScrollIndicator={false}
+         >
+           {!fromSettings && <OnboardingProgress currentStep={4} flowType="setup" />}
+           <View style={styles.iconCircle}>
             <Ionicons name="cloud-done-outline" size={40} color={COLORS.primary} />
           </View>
 

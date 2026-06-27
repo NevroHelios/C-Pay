@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PINInput } from '../components/PINInput';
+import { OnboardingProgress } from '../components/OnboardingProgress';
 import { cachePinForSession, createWallet } from '../services/wallet';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
@@ -137,7 +138,8 @@ export const ConfirmPINScreen: React.FC<ConfirmPINScreenProps> = ({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
+      <OnboardingProgress currentStep={2} flowType="setup" />
+      <View style={[styles.content, { paddingTop: SPACING.md }]}>
         <View style={styles.header}>
           <Image
             source={require('../../assets/cpay_logo.png')}

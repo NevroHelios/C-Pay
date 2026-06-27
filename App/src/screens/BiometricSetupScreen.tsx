@@ -16,6 +16,7 @@ import { isBiometricAvailable, getBiometricType, enableBiometric } from '../util
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
+import { OnboardingProgress } from '../components/OnboardingProgress';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const { width, height } = Dimensions.get('window');
@@ -23,11 +24,14 @@ const isSmallDevice = height < 700;
 
 interface BiometricSetupScreenProps {
   navigation: any;
+  route?: any;
 }
 
 export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
   navigation,
+  route,
 }) => {
+  const flowType = route?.params?.flowType || 'setup';
   const [biometricType, setBiometricType] = useState<string>('');
   const [isAvailable, setIsAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -134,6 +138,10 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
+      <OnboardingProgress
+        currentStep={flowType === 'restore' ? 3 : 5}
+        flowType={flowType as 'setup' | 'restore'}
+      />
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { PINInput } from '../components/PINInput';
+import { OnboardingProgress } from '../components/OnboardingProgress';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
@@ -58,6 +59,7 @@ export const CreatePINScreen: React.FC<CreatePINScreenProps> = ({ navigation, ro
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <OnboardingProgress currentStep={2} flowType="setup" />
         <View style={styles.content}>
           <View style={styles.header}>
             <Image
