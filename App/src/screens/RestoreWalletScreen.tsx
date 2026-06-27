@@ -167,15 +167,11 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       const available = !!backup;
       setCloudBackupAvailable(available);
       setState(available ? 'cloud_restore' : 'missing_backup');
-    } catch (err: any) {
-      const isNetworkError =
-        /network|fetch|connect|offline|timeout/i.test(err?.message || '');
-      if (isNetworkError) {
-        setState('network_error');
-      } else {
-        setCloudBackupAvailable(false);
-        setState('missing_backup');
-      }
+    } catch {
+      setCloudBackup(null);
+      setCloudBackupAvailable(false);
+      setState('network_error');
+    }
     }
   };
 
