@@ -112,7 +112,8 @@ const styles = StyleSheet.create({
   },
   stepItem: {
     alignItems: 'center',
-    width: 60,
+    flex: 1,
+    minWidth: 0,
     zIndex: 1,
   },
   stepDot: {
