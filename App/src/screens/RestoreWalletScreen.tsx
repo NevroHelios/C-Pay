@@ -118,6 +118,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [wrongPasswordAttempts, setWrongPasswordAttempts] = useState(0);
+  const [restoreSource, setRestoreSource] = useState<'cloud' | 'key' | null>(null);
   const submittingRef = useRef(false);
 
   // ─── Success animation ────────────────────────────────────────────────────
@@ -172,7 +173,6 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       setCloudBackupAvailable(false);
       setState('network_error');
     }
-    }
   };
 
   // ─── Cloud backup restore ─────────────────────────────────────────────────
@@ -199,6 +199,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       }
 
       setNormalizedSecret(restoredBackup.secret);
+      setRestoreSource('cloud');
       setPin('');
       setConfirmPin('');
       setState('pin');
@@ -240,6 +241,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
     setError('');
     setNormalizedSecret(secret);
+    setRestoreSource('key');
     setPin('');
     setConfirmPin('');
     setState('pin');
@@ -304,15 +306,21 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
     await waitForUiPaint();
 
     try {
+      const derivedAddress = getSecretPublicKey(normalizedSecret);
+      if (!derivedAddress || derivedAddress !== walletAddress) {
+        throw new Error('Restored wallet does not match your profile wallet.');
+      }
+
       const restoredAddress = await recreateWalletFromSecret(normalizedSecret, pinToConfirm);
       if (restoredAddress !== walletAddress) {
         throw new Error('Restored wallet does not match your profile wallet.');
       }
 
       await saveRestoredLocalProfile();
+      const isCloudRestore = restoreSource === 'cloud';
       await AsyncStorage.multiSet([
-        ['cloud_backup_complete', cloudBackupAvailable ? 'true' : 'false'],
-        ['cloud_backup_required', cloudBackupAvailable ? 'false' : 'true'],
+        ['cloud_backup_complete', isCloudRestore ? 'true' : 'false'],
+        ['cloud_backup_required', isCloudRestore ? 'false' : 'true'],
       ]);
       cachePinForSession(pinToConfirm);
 

@@ -31,7 +31,9 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
   navigation,
   route,
 }) => {
-  const flowType = route?.params?.flowType || 'setup';
+  const rawFlowType = route?.params?.flowType;
+  const flowType: 'setup' | 'restore' =
+    rawFlowType === 'restore' ? 'restore' : 'setup';
   const [biometricType, setBiometricType] = useState<string>('');
   const [isAvailable, setIsAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -140,7 +142,7 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
     <SafeAreaView style={styles.container}>
       <OnboardingProgress
         currentStep={flowType === 'restore' ? 3 : 5}
-        flowType={flowType as 'setup' | 'restore'}
+        flowType={flowType}
       />
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
