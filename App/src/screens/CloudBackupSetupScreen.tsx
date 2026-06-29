@@ -1,19 +1,13 @@
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, OnboardingProgress } from '../components';
+import { Button, OnboardingProgress, Screen, FormField, InfoBanner } from '../components';
 import {
   createCloudWalletBackup,
   getRecoveryPasswordRules,
@@ -109,146 +103,109 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-           contentContainerStyle={styles.content}
-           keyboardShouldPersistTaps="handled"
-           showsVerticalScrollIndicator={false}
-         >
-           {!fromSettings && <OnboardingProgress currentStep={4} flowType="setup" />}
-           <View style={styles.iconCircle}>
-            <Ionicons name="cloud-done-outline" size={40} color={COLORS.primary} />
-          </View>
+    <Screen padded={false} contentContainerStyle={styles.content}>
+      {!fromSettings && <OnboardingProgress currentStep={4} flowType="setup" />}
+      <View style={styles.iconCircle}>
+        <Ionicons name="cloud-done-outline" size={40} color={COLORS.primary} />
+      </View>
 
-          <Text style={styles.title}>
-            {fromSettings ? 'Update Cloud Backup' : 'Secure Cloud Backup'}
-          </Text>
-          <Text style={styles.subtitle}>
-            Create a recovery password to encrypt your wallet before it is stored in Supabase.
-          </Text>
+      <Text style={styles.title}>
+        {fromSettings ? 'Update Cloud Backup' : 'Secure Cloud Backup'}
+      </Text>
+      <Text style={styles.subtitle}>
+        Create a recovery password to encrypt your wallet before it is stored in Supabase.
+      </Text>
 
-          <View style={styles.infoBox}>
-            <Ionicons name="lock-closed-outline" size={20} color={COLORS.infoDark} />
-            <Text style={styles.infoText}>
-              Only encrypted wallet data is uploaded. C-Pay cannot read your secret key or reset this recovery password.
-            </Text>
-          </View>
+      <InfoBanner
+        variant="info"
+        icon="lock-closed-outline"
+        message="Only encrypted wallet data is uploaded. C-Pay cannot read your secret key or reset this recovery password."
+        style={styles.infoBox}
+      />
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Recovery Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={styles.passwordInput}
-                value={password}
-                onChangeText={(value) => {
-                  setPassword(value);
-                  setError('');
-                }}
-                placeholder="At least 12 characters"
-                placeholderTextColor={COLORS.textSecondary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry={!showPassword}
-                editable={!loading}
+      <View style={styles.formGroup}>
+        <FormField
+          label="Recovery Password"
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            setError('');
+          }}
+          placeholder="At least 12 characters"
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry={!showPassword}
+          editable={!loading}
+          error={passwordValidationError || undefined}
+          rightAction={{
+            icon: showPassword ? 'eye-off-outline' : 'eye-outline',
+            onPress: () => setShowPassword((current) => !current),
+            accessibilityLabel: showPassword ? 'Hide password' : 'Show password',
+          }}
+        />
+        <View style={styles.ruleList}>
+          {passwordRules.map((rule) => (
+            <View key={rule.id} style={styles.ruleRow}>
+              <Ionicons
+                name={rule.passed ? 'checkbox-outline' : 'square-outline'}
+                size={18}
+                color={rule.passed ? COLORS.success : COLORS.textSecondary}
+                style={styles.ruleIcon}
               />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword((current) => !current)}
-                disabled={loading}
-                accessibilityRole="button"
-                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={22}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
+              <Text style={[styles.ruleText, rule.passed && styles.ruleTextPassed]}>
+                {rule.label}
+              </Text>
             </View>
-            <View style={styles.ruleList}>
-              {passwordRules.map((rule) => (
-                <View key={rule.id} style={styles.ruleRow}>
-                  <Ionicons
-                    name={rule.passed ? 'checkbox-outline' : 'square-outline'}
-                    size={18}
-                    color={rule.passed ? COLORS.success : COLORS.textSecondary}
-                    style={styles.ruleIcon}
-                  />
-                  <Text style={[styles.ruleText, rule.passed && styles.ruleTextPassed]}>
-                    {rule.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            {!!passwordValidationError && (
-              <Text style={styles.inlineErrorText}>{passwordValidationError}</Text>
-            )}
-          </View>
+          ))}
+        </View>
+      </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Confirm Recovery Password</Text>
-            <TextInput
-              style={styles.input}
-              value={confirmPassword}
-              onChangeText={(value) => {
-                setConfirmPassword(value);
-                setError('');
-              }}
-              placeholder="Re-enter password"
-              placeholderTextColor={COLORS.textSecondary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={!showPassword}
-              editable={!loading}
-            />
-            {passwordsDoNotMatch && (
-              <Text style={styles.inlineErrorText}>Recovery passwords do not match.</Text>
-            )}
-          </View>
+      <FormField
+        containerStyle={styles.formGroup}
+        label="Confirm Recovery Password"
+        value={confirmPassword}
+        onChangeText={(value) => {
+          setConfirmPassword(value);
+          setError('');
+        }}
+        placeholder="Re-enter password"
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry={!showPassword}
+        editable={!loading}
+        error={passwordsDoNotMatch ? 'Recovery passwords do not match.' : undefined}
+      />
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-          <Button
-            title={loading ? 'Saving Backup...' : 'Save Encrypted Backup'}
-            onPress={handleSaveBackup}
-            loading={loading}
-            disabled={loading}
-            fullWidth
-            size="lg"
-          />
+      <Button
+        title={loading ? 'Saving Backup...' : 'Save Encrypted Backup'}
+        onPress={handleSaveBackup}
+        loading={loading}
+        disabled={loading}
+        fullWidth
+        size="lg"
+      />
 
-          {loading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>Encrypting wallet on this device...</Text>
-            </View>
-          )}
+      {loading && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator color={COLORS.primary} />
+          <Text style={styles.loadingText}>Encrypting wallet on this device...</Text>
+        </View>
+      )}
 
-          <Text style={styles.footer}>
-            Save this password somewhere safe. You will need it after clearing app data or moving to a new phone.
-          </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <Text style={styles.footer}>
+        Save this password somewhere safe. You will need it after clearing app data or moving to a new phone.
+      </Text>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  container: {
-    flex: 1,
-  },
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
   },
   iconCircle: {
     width: 78,
@@ -275,59 +232,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   infoBox: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.infoBg,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
     marginBottom: SPACING.xl,
-    ...SHADOWS.sm,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.infoDark,
-    lineHeight: 19,
   },
   formGroup: {
     marginBottom: SPACING.md,
-  },
-  label: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  input: {
-    minHeight: 52,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingHorizontal: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-  },
-  passwordRow: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.lg,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingHorizontal: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-  },
-  eyeButton: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   ruleList: {
     marginTop: SPACING.sm,
@@ -347,12 +255,6 @@ const styles = StyleSheet.create({
   ruleTextPassed: {
     color: COLORS.success,
     fontWeight: '600',
-  },
-  inlineErrorText: {
-    color: COLORS.error,
-    fontSize: FONT_SIZES.xs,
-    marginTop: SPACING.xs,
-    lineHeight: 16,
   },
   errorText: {
     color: COLORS.error,

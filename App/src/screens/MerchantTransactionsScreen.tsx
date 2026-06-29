@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,7 +17,7 @@ import {
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { formatMoneyBalance } from '../utils/currency';
 import { formatDateShort } from '../utils/date';
-import { TransactionDetailModal } from '../components';
+import { TransactionDetailModal, Screen, Header } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash } from '../services/blockchain';
@@ -140,28 +139,13 @@ export const MerchantTransactionsScreen: React.FC<MerchantTransactionsScreenProp
     </TouchableOpacity>
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>All Transactions</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
+    <Screen
+      scroll={false}
+      padded={false}
+      loading={loading}
+      header={<Header title="All Transactions" onBack={() => navigation.goBack()} />}
+    >
       {/* Summary */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryItem}>
@@ -225,40 +209,11 @@ export const MerchantTransactionsScreen: React.FC<MerchantTransactionsScreenProp
         currentWallet={walletAddress}
         isMerchantView={true}
       />
-    </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.xl * 2,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    padding: SPACING.xs,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
   summaryCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.card,

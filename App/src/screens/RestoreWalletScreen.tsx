@@ -12,13 +12,13 @@ import {
   Image,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as StellarSdk from '@stellar/stellar-base';
 import { Buffer } from 'buffer';
 import { Ionicons } from '@expo/vector-icons';
 import { PINInput } from '../components/PINInput';
 import { OnboardingProgress } from '../components/OnboardingProgress';
+import { Screen } from '../components';
 import {
   getCloudWalletBackup,
   restoreCloudWalletBackup,
@@ -393,7 +393,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'checking') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -402,7 +402,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             Checking for an encrypted cloud backup linked to your email.
           </Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -410,7 +410,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'existing_local_wallet') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {renderHeader('warning-outline', 'Wallet Already on Device', 'A different wallet is already stored on this device.', COLORS.warning)}
@@ -440,7 +440,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             <Text style={styles.secondaryButtonText}>Keep Current Wallet & Log In</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -448,7 +448,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'network_error') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {renderHeader('cloud-offline-outline', 'Connection Problem', 'We could not reach the backup server. Check your internet connection and try again.', COLORS.error)}
@@ -475,7 +475,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             <Text style={styles.secondaryButtonText}>Restore with Secret Key Instead</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -483,7 +483,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'missing_backup') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {renderHeader('cloud-outline', 'No Cloud Backup Found', 'We did not find an encrypted cloud backup linked to this email.', COLORS.warning)}
@@ -512,7 +512,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             <Text style={styles.secondaryButtonText}>Create a New Wallet Instead</Text>
           </TouchableOpacity>
         </ScrollView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -520,7 +520,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'cloud_restore') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -603,7 +603,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -611,7 +611,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'key_restore') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} padded={false} keyboardAvoiding={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -678,7 +678,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -686,10 +686,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'pin') {
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <Screen scroll={false} padded={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <ScrollView contentContainerStyle={styles.pinContent} keyboardShouldPersistTaps="handled">
           <View style={styles.pinHeader}>
@@ -715,7 +712,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             <PINInput value={pin} onChange={handlePinChange} error={error} autoFocus disabled={loading} />
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </Screen>
     );
   }
 
@@ -723,10 +720,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
   if (state === 'confirm') {
     return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <Screen scroll={false} padded={false}>
         <OnboardingProgress currentStep={2} flowType="restore" />
         <View style={styles.pinContent}>
           <View style={styles.pinHeader}>
@@ -758,14 +752,14 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
             </View>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </Screen>
     );
   }
 
   // ─── State: success ──────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen scroll={false} padded={false} keyboardAvoiding={false}>
       <OnboardingProgress currentStep={2} flowType="restore" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Animated.View
@@ -811,7 +805,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
           <Text style={styles.primaryButtonText}>Next: Security Setup →</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 };
 

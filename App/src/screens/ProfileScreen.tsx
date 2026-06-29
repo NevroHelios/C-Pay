@@ -26,7 +26,7 @@ import { isMerchant, getMerchantProfile, merchantEvents } from '../services/merc
 import { supabase } from '../services/supabase';
 import { isBiometricAvailable, getBiometricType, enableBiometric, getAuthenticatedWallet } from '../utils/biometric';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Card, Button } from '../components';
+import { Screen, Section, ActionRow } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
 import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
@@ -602,8 +602,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <Screen topInset={false}>
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <TouchableOpacity style={styles.profilePhotoContainer} onPress={handlePickImage}>
@@ -708,8 +707,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
       {/* Merchant Section */}
       {merchantStatus && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Merchant</Text>
+        <Section title="Merchant">
           <View style={styles.merchantCard}>
             <View style={styles.merchantHeader}>
               <Text style={styles.merchantBadge}>Merchant Account</Text>
@@ -723,224 +721,158 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Text style={styles.merchantButtonText}>Open Dashboard</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Section>
       )}
 
       {/* Security Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Security & Privacy</Text>
+      <Section title="Security & Privacy">
         <View style={styles.settingsCard}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="lock-closed-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>{biometricType}</Text>
-                <Text style={styles.settingDescription}>
-                  {biometricSaving ? 'Updating biometric unlock...' : `Quick unlock with ${biometricType.toLowerCase()}`}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={handleToggleBiometric}
-              disabled={biometricSaving}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-              thumbColor={biometricEnabled ? COLORS.primary : COLORS.textSecondary}
-            />
-          </View>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="lock-closed-outline"
+            title={biometricType}
+            subtitle={biometricSaving ? 'Updating biometric unlock...' : `Quick unlock with ${biometricType.toLowerCase()}`}
+            right={
+              <Switch
+                value={biometricEnabled}
+                onValueChange={handleToggleBiometric}
+                disabled={biometricSaving}
+                trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
+                thumbColor={biometricEnabled ? COLORS.primary : COLORS.textSecondary}
+              />
+            }
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('ChangePIN')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="keypad-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Change PIN</Text>
-                <Text style={styles.settingDescription}>Update your 6-digit PIN</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="keypad-outline"
+            title="Change PIN"
+            subtitle="Update your 6-digit PIN"
+            onPress={() => navigation.navigate('ChangePIN')}
+          />
         </View>
-      </View>
+      </Section>
 
       {/* Preferences Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
+      <Section title="Preferences">
         <View style={styles.settingsCard}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Notifications</Text>
-                <Text style={styles.settingDescription}>Transaction alerts</Text>
-              </View>
-            </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={handleToggleNotifications}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-              thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textSecondary}
-            />
-          </View>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="notifications-outline"
+            title="Notifications"
+            subtitle="Transaction alerts"
+            right={
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleToggleNotifications}
+                trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
+                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textSecondary}
+              />
+            }
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('TransactionHistory')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="receipt-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Transaction History</Text>
-                <Text style={styles.settingDescription}>View all transactions</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="receipt-outline"
+            title="Transaction History"
+            subtitle="View all transactions"
+            onPress={() => navigation.navigate('TransactionHistory')}
+          />
         </View>
-      </View>
+      </Section>
 
       {/* Account Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
+      <Section title="Account">
         <View style={styles.settingsCard}>
-          <TouchableOpacity style={styles.settingRow} onPress={handleShowWalletAddress}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="finger-print-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Wallet Address</Text>
-                <Text style={styles.settingDescription}>Show public Stellar address</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-
+          <ActionRow
+            style={styles.rowFlat}
+            icon="finger-print-outline"
+            title="Wallet Address"
+            subtitle="Show public Stellar address"
+            onPress={handleShowWalletAddress}
+          />
           <View style={styles.settingDivider} />
-
-          <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('CloudBackupSetup', { fromSettings: true })}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="cloud-done-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Cloud Backup</Text>
-                <Text style={styles.settingDescription}>Update encrypted recovery backup</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-
+          <ActionRow
+            style={styles.rowFlat}
+            icon="cloud-done-outline"
+            title="Cloud Backup"
+            subtitle="Update encrypted recovery backup"
+            onPress={() => navigation.navigate('CloudBackupSetup', { fromSettings: true })}
+          />
           <View style={styles.settingDivider} />
-
-          <TouchableOpacity style={styles.settingRow} onPress={() => handleExportWalletKey('private')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="wallet-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Backup Wallet</Text>
-                <Text style={styles.settingDescription}>Export private key</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="wallet-outline"
+            title="Backup Wallet"
+            subtitle="Export private key"
+            onPress={() => handleExportWalletKey('private')}
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => handleExportWalletKey('stellar')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="key-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Recovery Key</Text>
-                <Text style={styles.settingDescription}>Export Stellar secret key</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="key-outline"
+            title="Recovery Key"
+            subtitle="Export Stellar secret key"
+            onPress={() => handleExportWalletKey('stellar')}
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('Coming Soon', 'Transaction limits feature will be available soon.')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="speedometer-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Transaction Limits</Text>
-                <Text style={styles.settingDescription}>Daily & monthly limits</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="speedometer-outline"
+            title="Transaction Limits"
+            subtitle="Daily & monthly limits"
+            onPress={() => AlertManager.alert('Coming Soon', 'Transaction limits feature will be available soon.')}
+          />
         </View>
-      </View>
+      </Section>
 
       {/* More Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>More</Text>
+      <Section title="More">
         <View style={styles.settingsCard}>
           {!merchantStatus && (
             <>
-              <TouchableOpacity
-                style={styles.settingRow}
+              <ActionRow
+                style={styles.rowFlat}
+                icon="storefront-outline"
+                title="Become a Merchant"
+                subtitle="Accept payments"
                 onPress={() => navigation.navigate('MerchantRegistration')}
-              >
-                <View style={styles.settingInfo}>
-                  <Ionicons name="storefront-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-                  <View>
-                    <Text style={styles.settingLabel}>Become a Merchant</Text>
-                    <Text style={styles.settingDescription}>Accept payments</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-              </TouchableOpacity>
+              />
               <View style={styles.settingDivider} />
             </>
           )}
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('Coming Soon', 'Help & Support will be available soon.')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Help & Support</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="chatbubble-ellipses-outline"
+            title="Help & Support"
+            onPress={() => AlertManager.alert('Coming Soon', 'Help & Support will be available soon.')}
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('Privacy Policy', 'Coming soon')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Privacy Policy</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="shield-checkmark-outline"
+            title="Privacy Policy"
+            onPress={() => AlertManager.alert('Privacy Policy', 'Coming soon')}
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('Terms of Service', 'Coming soon')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="document-text-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>Terms of Service</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          
+          <ActionRow
+            style={styles.rowFlat}
+            icon="document-text-outline"
+            title="Terms of Service"
+            onPress={() => AlertManager.alert('Terms of Service', 'Coming soon')}
+          />
           <View style={styles.settingDivider} />
-          
-          <TouchableOpacity style={styles.settingRow} onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.3\n\nC-Pay is a closed-pilot payment app using test credits on Stellar testnet.\n\nPilot credits are not real money and have no cash value.\n\n© 2026 C-Pay')}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="information-circle-outline" size={22} color={COLORS.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={styles.settingLabel}>About</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="information-circle-outline"
+            title="About"
+            onPress={() => AlertManager.alert('About C-Pay', 'Version 1.0.3\n\nC-Pay is a closed-pilot payment app using test credits on Stellar testnet.\n\nPilot credits are not real money and have no cash value.\n\n© 2026 C-Pay')}
+          />
         </View>
-      </View>
+      </Section>
 
       {/* Account Actions */}
-      <View style={styles.section}>
+      <View style={styles.signOutSection}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={20} color={COLORS.error} style={styles.signOutButtonIcon} />
           <Text style={styles.signOutButtonText}>Sign Out</Text>
@@ -956,7 +888,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <Text style={styles.footerSubtext}>Built for closed-pilot test payments</Text>
         <Text style={styles.footerSubtext}>Stellar Testnet</Text>
       </View>
-    </ScrollView>
+
     <Modal
       visible={!!exportedKey}
       animationType="fade"
@@ -1008,7 +940,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
     </Modal>
-    </>
+    </Screen>
   );
 };
 
@@ -1136,13 +1068,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textInverse,
   },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  rowFlat: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    paddingHorizontal: SPACING.sm,
   },
-  content: {
-    padding: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? 10 : SPACING.md,
+  signOutSection: {
+    marginBottom: SPACING.xl,
   },
   profileHeader: {
     alignItems: 'center',

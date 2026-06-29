@@ -1,18 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   Image,
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { PINInput } from '../components/PINInput';
+import { Screen } from '../components';
 import {
   cachePinForSession,
   getWalletFromBiometricBackup,
@@ -124,70 +122,57 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Image
-            source={require('../../assets/cpay_logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Enter your PIN to continue</Text>
-        </View>
-
-        <View style={styles.pinSection}>
-          <PINInput
-            value={pin}
-            onChange={handlePINChange}
-            error={error}
-            autoFocus={!showBiometric}
-            disabled={loading}
-          />
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Verifying PIN...</Text>
-            </View>
-          )}
-        </View>
-
-        {showBiometric && (
-          <TouchableOpacity
-            style={styles.biometricButton}
-            onPress={handleBiometricAuth}
-          >
-            <Ionicons name={biometricIconName as any} size={20} color={COLORS.primary} style={styles.biometricIcon} />
-            <Text style={styles.biometricText}>Use {biometricType}</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={styles.forgotPinButton}
-          onPress={() => navigation.navigate('ForgotPIN')}
-        >
-          <Text style={styles.forgotPinText}>Forgot PIN?</Text>
-        </TouchableOpacity>
+    <Screen scroll={false}>
+      <View style={styles.header}>
+        <Image
+          source={require('../../assets/cpay_logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Enter your PIN to continue</Text>
       </View>
-    </KeyboardAvoidingView>
+
+      <View style={styles.pinSection}>
+        <PINInput
+          value={pin}
+          onChange={handlePINChange}
+          error={error}
+          autoFocus={!showBiometric}
+          disabled={loading}
+        />
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Verifying PIN...</Text>
+          </View>
+        )}
+      </View>
+
+      {showBiometric && (
+        <TouchableOpacity
+          style={styles.biometricButton}
+          onPress={handleBiometricAuth}
+        >
+          <Ionicons name={biometricIconName as any} size={20} color={COLORS.primary} style={styles.biometricIcon} />
+          <Text style={styles.biometricText}>Use {biometricType}</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={styles.forgotPinButton}
+        onPress={() => navigation.navigate('ForgotPIN')}
+      >
+        <Text style={styles.forgotPinText}>Forgot PIN?</Text>
+      </TouchableOpacity>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? SPACING.xxxl : SPACING.xxl,
-  },
   header: {
     alignItems: 'center',
+    marginTop: SPACING.xxl,
     marginBottom: SPACING.xl * 2,
   },
   logo: {

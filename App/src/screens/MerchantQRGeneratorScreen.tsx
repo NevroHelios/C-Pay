@@ -3,13 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,12 +12,12 @@ import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
-import { File, Paths } from 'expo-file-system/next';
 import { Ionicons } from '@expo/vector-icons';
 import { getMerchantProfile } from '../services/merchant';
-import { MONEY_SYMBOL, MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } from '../utils/currency';
+import { MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } from '../utils/currency';
 import { generatePaymentQRWithId } from '../utils/qrCode';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { Screen, Header, AmountInput, Button } from '../components';
 import { AlertManager } from '../utils/alert';
 import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 
@@ -172,23 +167,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Top Header with Back Button */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Generate QR Code</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
+    <Screen header={<Header title="Generate QR Code" onBack={() => navigation.goBack()} />}>
         {!generatedQR && (
           <View style={styles.header}>
             {logoUrl ? (
@@ -214,40 +193,23 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
                   <Text style={styles.businessNameValue}>{businessName}</Text>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Amount ({MONEY_UNIT_LABEL}) *</Text>
-                  <View style={styles.amountInputContainer}>
-                    <Text style={styles.currencySymbol}>{MONEY_SYMBOL}</Text>
-                    <TextInput
-                      style={styles.amountInput}
-                      value={amount}
-                      onChangeText={setAmount}
-                      placeholder={`Enter amount in ${MONEY_UNIT_LABEL}`}
-                      placeholderTextColor={COLORS.textSecondary}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                  {amount && parseFloat(amount) > 0 && (
-                    <Text style={styles.assetEquivalent}>
+                <AmountInput
+                  containerStyle={styles.inputGroup}
+                  label={`Amount (${MONEY_UNIT_LABEL}) *`}
+                  value={amount}
+                  onChangeText={setAmount}
+                  helper="The exact amount customers will pay"
+                />
 
-                    </Text>
-                  )}
-                  <Text style={styles.hint}>
-                    The exact amount customers will pay
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.button, loading && styles.buttonDisabled]}
+                <Button
+                  title="Generate QR Code"
                   onPress={handleGenerate}
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  loading={loading}
                   disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={COLORS.card} />
-                  ) : (
-                    <Text style={styles.buttonText}>Generate QR Code</Text>
-                  )}
-                </TouchableOpacity>
+                />
               </>
             )}
           </View>
@@ -331,47 +293,20 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.doneButton}
+            <Button
+              title="Done"
               onPress={() => navigation.navigate('MerchantDashboard')}
-            >
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
+              variant="primary"
+              size="lg"
+              fullWidth
+            />
           </View>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.xl * 2,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    padding: SPACING.xs,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  content: {
-    padding: SPACING.lg,
-    paddingTop: SPACING.lg,
-  },
   header: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
@@ -432,54 +367,6 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: SPACING.lg,
   },
-  label: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-  },
-  currencySymbol: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginRight: SPACING.sm,
-  },
-  amountInput: {
-    flex: 1,
-    padding: SPACING.md,
-    paddingLeft: 0,
-    fontSize: FONT_SIZES.lg,
-    color: COLORS.text,
-  },
-  assetEquivalent: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  hint: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-  },
   exampleBox: {
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
@@ -497,20 +384,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
     marginBottom: 4,
-  },
-  button: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.card,
   },
   qrContainer: {
     alignItems: 'center',
@@ -596,17 +469,5 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
-  },
-  doneButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    padding: SPACING.md,
-    width: '100%',
-    alignItems: 'center',
-  },
-  doneButtonText: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.card,
   },
 });

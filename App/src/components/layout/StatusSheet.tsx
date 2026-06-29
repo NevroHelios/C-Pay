@@ -1,0 +1,163 @@
+import React from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  ActivityIndicator,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
+import { Button } from '../Button';
+
+export type StatusSheetVariant = 'loading' | 'success' | 'error' | 'warning' | 'info';
+
+export interface StatusSheetAction {
+  label: string;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+}
+
+export interface StatusSheetProps {
+  visible: boolean;
+  variant: StatusSheetVariant;
+  title: string;
+  message?: string;
+  /** Primary and (optional) secondary actions, stacked. Hidden for `loading`. */
+  actions?: StatusSheetAction[];
+  /** Called on backdrop press / hardware back. Omit to make the sheet non-dismissable. */
+  onRequestClose?: () => void;
+}
+
+const VARIANT: Record<
+  Exclude<StatusSheetVariant, 'loading'>,
+  { icon: keyof typeof Ionicons.glyphMap; fg: string; bg: string }
+> = {
+  success: { icon: 'checkmark-circle', fg: COLORS.success, bg: COLORS.successBg },
+  error: { icon: 'close-circle', fg: COLORS.error, bg: COLORS.errorBg },
+  warning: { icon: 'warning', fg: COLORS.warning, bg: COLORS.warningBg },
+  info: { icon: 'information-circle', fg: COLORS.info, bg: COLORS.infoBg },
+};
+
+/**
+ * Bottom sheet for terminal/transient states: loading, success, error,
+ * confirmation. Centralizes the icon + title + message + actions layout so
+ * success/failure/processing states look identical everywhere.
+ */
+export const StatusSheet: React.FC<StatusSheetProps> = ({
+  visible,
+  variant,
+  title,
+  message,
+  actions,
+  onRequestClose,
+}) => {
+  const insets = useSafeAreaInsets();
+  const dismissable = !!onRequestClose;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onRequestClose}
+    >
+      <TouchableOpacity
+        style={styles.backdrop}
+        activeOpacity={1}
+        onPress={dismissable ? onRequestClose : undefined}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}
+          // Prevent backdrop press from closing when tapping the sheet itself.
+          onPress={() => {}}
+        >
+          <View style={styles.grabber} />
+
+          {variant === 'loading' ? (
+            <View style={[styles.iconBadge, { backgroundColor: COLORS.primaryLight }]}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : (
+            <View style={[styles.iconBadge, { backgroundColor: VARIANT[variant].bg }]}>
+              <Ionicons name={VARIANT[variant].icon} size={40} color={VARIANT[variant].fg} />
+            </View>
+          )}
+
+          <Text style={styles.title}>{title}</Text>
+          {!!message && <Text style={styles.message}>{message}</Text>}
+
+          {variant !== 'loading' && actions && actions.length > 0 && (
+            <View style={styles.actions}>
+              {actions.map((action, index) => (
+                <Button
+                  key={`${action.label}-${index}`}
+                  title={action.label}
+                  onPress={action.onPress}
+                  variant={action.variant || (index === 0 ? 'primary' : 'secondary')}
+                  fullWidth
+                  style={index > 0 ? styles.actionSpacing : undefined}
+                />
+              ))}
+            </View>
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: BORDER_RADIUS.xxl,
+    borderTopRightRadius: BORDER_RADIUS.xxl,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    alignItems: 'center',
+  },
+  grabber: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    marginBottom: SPACING.lg,
+  },
+  iconBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.lg,
+  },
+  title: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    lineHeight: 22,
+  },
+  actions: {
+    width: '100%',
+    marginTop: SPACING.xl,
+  },
+  actionSpacing: {
+    marginTop: SPACING.sm,
+  },
+});

@@ -4,9 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +18,7 @@ import {
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { formatINR, formatMoneyBalance, convertAssetToINR } from '../utils/currency';
 import { formatDateShort } from '../utils/date';
-import { TransactionDetailModal } from '../components';
+import { TransactionDetailModal, Screen, Header, Section } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash } from '../services/blockchain';
@@ -116,36 +114,24 @@ export const MerchantDashboardScreen: React.FC<
     loadDashboard();
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      {/* Top Header with Back Button */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Merchant Dashboard</Text>
-        <View style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color={COLORS.textSecondary} />
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
+    <Screen
+      loading={loading}
+      header={
+        <Header
+          title="Merchant Dashboard"
+          onBack={() => navigation.goBack()}
+          right={
+            <View style={styles.settingsButton}>
+              <Ionicons name="settings-outline" size={24} color={COLORS.textSecondary} />
+            </View>
+          }
+        />
+      }
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+      }
+    >
         {/* Welcome Header */}
         <View style={styles.header}>
           <Image
@@ -212,22 +198,12 @@ export const MerchantDashboardScreen: React.FC<
       </View>
 
       {/* Transaction History */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Payments Received</Text>
-            <Text style={styles.sectionSubtitle}>Recent 10 transactions</Text>
-          </View>
-          {recentTransactions.length > 0 && (
-            <TouchableOpacity
-              style={styles.viewAllButton}
-              onPress={() => navigation.navigate('MerchantTransactions')}
-            >
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
+      <Section
+        title="Payments Received"
+        subtitle="Recent 10 transactions"
+        actionLabel={recentTransactions.length > 0 ? 'View All' : undefined}
+        onActionPress={() => navigation.navigate('MerchantTransactions')}
+      >
         {recentTransactions.length === 0 ? (
           <View style={styles.emptyTransactions}>
             <Ionicons name="receipt-outline" size={40} color={COLORS.textTertiary} style={styles.emptyTxEmoji} />
@@ -285,7 +261,7 @@ export const MerchantDashboardScreen: React.FC<
             ))}
           </View>
         )}
-      </View>
+      </Section>
 
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
@@ -298,41 +274,13 @@ export const MerchantDashboardScreen: React.FC<
         currentWallet={walletAddress}
         isMerchantView={true}
       />
-      </ScrollView>
-    </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.xl * 2,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    padding: SPACING.xs,
-  },
   settingsButton: {
     padding: SPACING.xs,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  content: {
-    padding: SPACING.md,
-    paddingTop: SPACING.sm,
   },
   topRowContainer: {
     flexDirection: 'row',
@@ -399,12 +347,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: SPACING.xs,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -444,32 +386,6 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SPACING.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  sectionSubtitle: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  viewAllText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
-    fontWeight: '600',
   },
   addButton: {
     backgroundColor: COLORS.primary,

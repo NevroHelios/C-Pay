@@ -3,11 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Alert,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { PaymentQRData } from '../utils/qrCode';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { sendPayment } from '../services/blockchain';
@@ -17,7 +14,7 @@ import { getMerchantById, getMerchantByAddress } from '../services/merchant';
 import { checkTransactionLimit, recordTransaction, checkRateLimit, recordAction } from '../services/securityLimits';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Button, Card } from '../components';
+import { Button, Card, Screen, Header, BottomActionBar, InfoBanner } from '../components';
 import { AlertManager } from '../utils/alert';
 import { MONEY_UNIT_LABEL, formatMoneyNumber } from '../utils/currency';
 import { PILOT_NOTICE_TEXT } from '../utils/pilot';
@@ -289,12 +286,30 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Confirm Payment</Text>
-      </View>
-
+    <Screen
+      header={<Header title="Confirm Payment" centerTitle onBack={handleCancel} />}
+      footer={
+        <BottomActionBar row>
+          <Button
+            title="Cancel"
+            onPress={handleCancel}
+            variant="outline"
+            disabled={loading}
+            size="lg"
+            style={styles.flexBtn}
+          />
+          <Button
+            title="Pay Now"
+            onPress={handleConfirmPayment}
+            variant="primary"
+            loading={loading}
+            disabled={loading}
+            size="lg"
+            style={styles.flexBtn}
+          />
+        </BottomActionBar>
+      }
+    >
       {/* Payment Details Card */}
       <Card variant="elevated" style={styles.card}>
         <View style={styles.merchantSection}>
@@ -335,58 +350,25 @@ export const PaymentConfirmScreen: React.FC<PaymentConfirmScreenProps> = ({
         )}
       </Card>
 
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        <Button
-          title="Cancel"
-          onPress={handleCancel}
-          variant="outline"
-          disabled={loading}
-          size="lg"
-          style={{ marginRight: SPACING.md }}
-        />
-        <Button
-          title="Pay Now"
-          onPress={handleConfirmPayment}
-          variant="primary"
-          loading={loading}
-          disabled={loading}
-          size="lg"
-        />
-      </View>
-
       {/* Security Notice */}
-      <View style={styles.securityNotice}>
-        <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.textSecondary} style={styles.securityIcon} />
-        <Text style={styles.securityText}>
-          PIN or biometric authentication required. {PILOT_NOTICE_TEXT}
-        </Text>
-      </View>
-    </View>
+      <InfoBanner
+        variant="info"
+        icon="shield-checkmark-outline"
+        message={`PIN or biometric authentication required. ${PILOT_NOTICE_TEXT}`}
+        style={styles.securityBanner}
+      />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  flexBtn: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : SPACING.xl,
-    paddingBottom: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  title: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    textAlign: 'center',
+  securityBanner: {
+    marginTop: SPACING.lg,
   },
   card: {
-    margin: SPACING.lg,
     padding: SPACING.xl,
   },
   merchantSection: {
@@ -464,26 +446,6 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: FONT_SIZES.md,
     color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  actions: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    marginTop: SPACING.xl,
-  },
-  securityNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.xl,
-    paddingHorizontal: SPACING.lg,
-  },
-  securityIcon: {
-    marginRight: SPACING.sm,
-  },
-  securityText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });

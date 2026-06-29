@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Button, OnboardingProgress } from '../components';
+import { Button, OnboardingProgress, FormField, InfoBanner } from '../components';
 import { AlertManager } from '../utils/alert';
 import { generateCPayId } from '../utils/cpayId';
 
@@ -270,36 +270,27 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
           </View>
 
           {/* Full Name Section */}
-          <View style={styles.section}>
-            <Text style={styles.label}>
-              Full Name <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Enter your full name"
-              placeholderTextColor={COLORS.textSecondary}
-              autoCapitalize="words"
-              autoCorrect={false}
-              maxLength={50}
-              editable={!loading}
-            />
-            <Text style={styles.hint}>
-              This name will be visible to merchants and other users
-            </Text>
-          </View>
+          <FormField
+            containerStyle={styles.section}
+            label="Full Name *"
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Enter your full name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={50}
+            editable={!loading}
+            helper="This name will be visible to merchants and other users"
+          />
 
           {/* Info Card */}
-          <View style={styles.infoCard}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.info} style={styles.infoIcon} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>Your Information is Secure</Text>
-              <Text style={styles.infoText}>
-                Your profile details are encrypted and stored securely. We never share your personal information.
-              </Text>
-            </View>
-          </View>
+          <InfoBanner
+            variant="info"
+            icon="shield-checkmark-outline"
+            title="Your Information is Secure"
+            message="Your profile details are encrypted and stored securely. We never share your personal information."
+            style={styles.infoCard}
+          />
 
           <Button
             title={loading ? 'Saving Profile...' : 'Complete Setup'}
@@ -420,44 +411,8 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontWeight: '600',
   },
-  input: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  hint: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
   infoCard: {
-    backgroundColor: COLORS.infoBg,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    flexDirection: 'row',
     marginBottom: SPACING.xl,
-  },
-  infoIcon: {
-    marginRight: SPACING.sm,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.infoDark,
-    marginBottom: 2,
-  },
-  infoText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-    lineHeight: 16,
   },
   footer: {
     fontSize: FONT_SIZES.xs,

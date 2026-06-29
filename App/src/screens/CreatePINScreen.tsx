@@ -3,13 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Image,
-  ScrollView,
 } from 'react-native';
 import { PINInput } from '../components/PINInput';
 import { OnboardingProgress } from '../components/OnboardingProgress';
+import { Screen } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
@@ -49,62 +47,45 @@ export const CreatePINScreen: React.FC<CreatePINScreenProps> = ({ navigation, ro
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <OnboardingProgress currentStep={2} flowType="setup" />
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Image
-              source={require('../../assets/cpay_logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.title}>Create Your PIN</Text>
-            <Text style={styles.subtitle}>
-              Choose 6 digits you can remember. You will use this to unlock C-Pay.
-            </Text>
-          </View>
-
-          <View style={styles.infoSection}>
-            <Text style={styles.infoTitle}>Make it secure</Text>
-            <Text style={styles.infoText}>Avoid obvious patterns like 123456 or repeated digits.</Text>
-            <Text style={styles.infoText}>Your wallet remains encrypted on this device.</Text>
-          </View>
-
-          <View style={styles.pinSection}>
-            <PINInput
-              value={pin}
-              onChange={handlePINChange}
-              error={error}
-              autoFocus
-            />
-          </View>
+    <Screen padded={false}>
+      <OnboardingProgress currentStep={2} flowType="setup" />
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Image
+            source={require('../../assets/cpay_logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Create Your PIN</Text>
+          <Text style={styles.subtitle}>
+            Choose 6 digits you can remember. You will use this to unlock C-Pay.
+          </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <View style={styles.infoSection}>
+          <Text style={styles.infoTitle}>Make it secure</Text>
+          <Text style={styles.infoText}>Avoid obvious patterns like 123456 or repeated digits.</Text>
+          <Text style={styles.infoText}>Your wallet remains encrypted on this device.</Text>
+        </View>
+
+        <View style={styles.pinSection}>
+          <PINInput
+            value={pin}
+            onChange={handlePINChange}
+            error={error}
+            autoFocus
+          />
+        </View>
+      </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
   content: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? SPACING.xxxl : SPACING.xxl,
+    paddingTop: SPACING.xl,
     paddingBottom: SPACING.xxl,
   },
   header: {

@@ -3,12 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PINInput } from '../components/PINInput';
+import { Screen } from '../components';
 import { cachePinForSession, verifyPin, changeWalletPin } from '../services/wallet';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
@@ -154,10 +153,7 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
   const content = getStepContent();
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <Screen scroll={false} padded={false}>
       <View style={styles.content}>
         {/* Progress Indicator */}
         <View style={styles.progressContainer}>
@@ -202,19 +198,15 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   content: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl * 2,
+    paddingTop: SPACING.lg,
   },
   progressContainer: {
     flexDirection: 'row',
