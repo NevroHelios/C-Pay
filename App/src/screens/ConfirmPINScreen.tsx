@@ -4,13 +4,12 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PINInput } from '../components/PINInput';
 import { OnboardingProgress } from '../components/OnboardingProgress';
+import { Screen } from '../components';
 import { cachePinForSession, createWallet } from '../services/wallet';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
@@ -134,10 +133,7 @@ export const ConfirmPINScreen: React.FC<ConfirmPINScreenProps> = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <Screen scroll={false} padded={false}>
       <OnboardingProgress currentStep={2} flowType="setup" />
       <View style={[styles.content, { paddingTop: SPACING.md }]}>
         <View style={styles.header}>
@@ -169,19 +165,14 @@ export const ConfirmPINScreen: React.FC<ConfirmPINScreenProps> = ({
           </View>
         )}
       </View>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   content: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? SPACING.xxl : SPACING.xl,
   },
   header: {
     alignItems: 'center',

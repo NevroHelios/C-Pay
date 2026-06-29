@@ -4,10 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
-  ScrollView,
   Platform,
-  KeyboardAvoidingView,
   BackHandler,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,7 +14,15 @@ import { saveTransaction, getUserDisplayName } from '../services/storage';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Button, LoadingSpinner } from '../components';
+import {
+  Button,
+  Screen,
+  Header,
+  FormField,
+  AmountInput,
+  InfoBanner,
+  BottomActionBar,
+} from '../components';
 import { AlertManager } from '../utils/alert';
 import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount } from '../utils/currency';
 import { PILOT_TESTNET_TEXT } from '../utils/pilot';
@@ -58,7 +63,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     const routeRecipientName = typeof route?.params?.recipientName === 'string'
       ? route.params.recipientName.trim()
       : '';
-    
+
     // If coming from QR scan or deep link
     if (route?.params?.recipientAddress) {
       const address = route.params.recipientAddress;
@@ -218,7 +223,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   // Handle address input change - auto-fetch when valid address or C-Pay ID is entered
   const handleAddressChange = async (input: string) => {
     setRecipientInput(input);
-    
+
     // Clear previous recipient info when address changes
     if (!isFromQR) {
       setRecipientAddress('');
@@ -226,7 +231,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientCPayId('');
       setRecipientFetched(false);
     }
-    
+
     // Check if input is a valid C-Pay ID
     if (!isFromQR && isValidCPayId(input.trim())) {
       setFetchingRecipient(true);
@@ -250,10 +255,10 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       }
       return;
     }
-    
+
     // Otherwise treat as wallet address
     setRecipientAddress(input);
-    
+
     if (!isFromQR && isValidAccountId(input)) {
       fetchRecipientName(input);
     }
@@ -341,7 +346,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
               // Navigate to Processing screen immediately
               const startTime = Date.now();
-              
+
               navigation.replace('PaymentProcessing', {
                 amount: amount,
                 recipientName: effectiveRecipientName || displayId,
@@ -368,7 +373,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               // Save transaction locally and sync to Supabase
               // Get sender's name from AsyncStorage
               const senderName = await AsyncStorage.getItem('user_name');
-              
+
               const transactionData = {
                 tx_hash: txHash,
                 to_address: recipientAddress.trim(),
@@ -385,7 +390,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
                 transaction_type: effectiveMerchantId ? 'merchant' as const : 'personal' as const,
                 merchant_id: effectiveMerchantId || undefined,
               };
-              
+
               saveTransaction(transactionData)
                 .then(() => console.log('✅ Transaction saved and synced'))
                 .catch(err => console.error('❌ Transaction save/sync error:', err));
@@ -413,9 +418,9 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
               paymentInProgress.current = false;
               if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
               console.error('Send pilot credits error:', error);
-              
+
               const { errorMessage, errorReason, errorCode } = getPaymentFailureCopy(error);
-              
+
               // Navigate to Failure screen
               navigation.replace('PaymentFailure', {
                 amount: amount,
@@ -469,221 +474,130 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner fullScreen text="Processing payment..." />;
-  }
+  const isAmountValid = !!amount && parseFloat(amount) > 0;
+  const canSend = !!recipientAddress && isAmountValid;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-          >
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Send Pilot Credits</Text>
-          <View style={styles.placeholder} />
-        </View>
-
-        {/* Balance Card - Hidden when scanned from other places */}
-        {!hideBalance && (
-          <View style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>Available Credits</Text>
-            <View style={styles.balanceRow}>
-              <Text style={styles.balanceCurrency}>{MONEY_SYMBOL}</Text>
-              <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(2)}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Recipient Info Card - Show when from QR scan OR when name is fetched */}
-        {((isFromQR && recipientName) || recipientFetched) && (
-          <View style={styles.recipientCard}>
-            <View style={styles.recipientCardHeader}>
-              <Ionicons
-                name={isMerchantPayment ? 'storefront-outline' : 'person-outline'}
-                size={23}
-                color={COLORS.primary}
-                style={styles.recipientCardIcon}
-              />
-              <Text style={styles.recipientCardTitle}>
-                {isMerchantPayment ? 'Paying Merchant' : 'Sending To'}
-              </Text>
-            </View>
-            <View style={styles.recipientCardContent}>
-              <Text style={styles.recipientCardName}>{recipientName}</Text>
-              <Text style={styles.recipientCardAddress} numberOfLines={1}>
-                {recipientCPayId || formatWalletFingerprint(recipientAddress)}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Recipient Address Input - Hide when recipient is fetched or from QR */}
-        {!isFromQR && !recipientFetched && (
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Recipient C-Pay ID</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="name@cpayk8f3qz"
-                placeholderTextColor={COLORS.textTertiary}
-                value={recipientInput}
-                onChangeText={handleAddressChange}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity style={styles.inputButton} onPress={handlePasteAddress}>
-                <Ionicons name="clipboard-outline" size={20} color={COLORS.primary} />
-              </TouchableOpacity>
-            </View>
-            {fetchingRecipient && (
-              <Text style={styles.fetchingText}>Looking up recipient...</Text>
-            )}
-          </View>
-        )}
-
-        {/* Change Recipient Button - Show when recipient is fetched (not from QR) */}
-        {!isFromQR && recipientFetched && (
-          <TouchableOpacity 
-            style={styles.changeRecipientButton}
-            onPress={() => {
-              setRecipientInput('');
-              setRecipientAddress('');
-              setRecipientName('');
-              setRecipientCPayId('');
-              setRecipientFetched(false);
-            }}
-          >
-            <Text style={styles.changeRecipientText}>Change Recipient</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Amount Input */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Amount</Text>
-          <View style={styles.amountInputContainer}>
-            <Text style={styles.currencySymbol}>{MONEY_SYMBOL}</Text>
-            <TextInput
-              style={[styles.amountInput, hasPresetAmount && styles.inputDisabled]}
-              placeholder="0.00"
-              placeholderTextColor={COLORS.textTertiary}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              editable={!hasPresetAmount}
-            />
-            <Text style={styles.currencyLabel}>{MONEY_UNIT_LABEL}</Text>
-          </View>
-          {/* Quick Amount Buttons - Hide when amount is preset from QR */}
-          {!hasPresetAmount && (
-            <View style={styles.quickAmountContainer}>
-              {['10', '50', '100', '500'].map((quickAmount) => (
-                <TouchableOpacity
-                  key={quickAmount}
-                  style={styles.quickAmountButton}
-                  onPress={() => setAmount(quickAmount)}
-                >
-                  <Text style={styles.quickAmountText}>{MONEY_SYMBOL} {quickAmount}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Note Input (Optional) */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Add Note (Optional)</Text>
-          <TextInput
-            style={styles.noteInput}
-            placeholder="e.g., Lunch payment, Rent, etc."
-            placeholderTextColor={COLORS.textTertiary}
-            value={note}
-            onChangeText={setNote}
-            maxLength={50}
+    <Screen
+      loading={loading}
+      loadingText="Processing payment..."
+      header={<Header title="Send Pilot Credits" onBack={handleBackPress} />}
+      footer={
+        <BottomActionBar>
+          <Button
+            title={isAmountValid ? `Send ${formatMoneyAmount(parseFloat(amount))}` : 'Enter Amount to Send'}
+            onPress={handleSendMoney}
+            variant="primary"
+            size="lg"
+            fullWidth
+            disabled={!canSend}
           />
+        </BottomActionBar>
+      }
+    >
+      {/* Balance Card - Hidden when scanned from other places */}
+      {!hideBalance && (
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Available Credits</Text>
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceCurrency}>{MONEY_SYMBOL}</Text>
+            <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(2)}</Text>
+          </View>
         </View>
+      )}
 
-        {/* Send Button */}
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            (!recipientAddress || !amount || parseFloat(amount) <= 0) && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSendMoney}
-          disabled={!recipientAddress || !amount || parseFloat(amount) <= 0}
-          activeOpacity={0.8}
-        >
-          <View style={styles.sendButtonContent}>
-            <Ionicons name="send-outline" size={22} color={COLORS.textInverse} style={styles.sendButtonEmoji} />
-            <Text style={styles.sendButtonText}>
-              {amount && parseFloat(amount) > 0
-                ? `Send ${formatMoneyAmount(parseFloat(amount))}`
-                : 'Enter Amount to Send'}
+      {/* Recipient Info Card - Show when from QR scan OR when name is fetched */}
+      {((isFromQR && recipientName) || recipientFetched) && (
+        <View style={styles.recipientCard}>
+          <View style={styles.recipientCardHeader}>
+            <Ionicons
+              name={isMerchantPayment ? 'storefront-outline' : 'person-outline'}
+              size={23}
+              color={COLORS.primary}
+              style={styles.recipientCardIcon}
+            />
+            <Text style={styles.recipientCardTitle}>
+              {isMerchantPayment ? 'Paying Merchant' : 'Sending To'}
             </Text>
           </View>
-        </TouchableOpacity>
-
-        {/* Info */}
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color={COLORS.info} style={styles.infoIcon} />
-          <Text style={styles.infoText}>
-            {PILOT_TESTNET_TEXT} Payments typically confirm in 5-10 seconds.
-          </Text>
+          <View style={styles.recipientCardContent}>
+            <Text style={styles.recipientCardName} numberOfLines={1}>{recipientName}</Text>
+            <Text style={styles.recipientCardAddress} numberOfLines={1}>
+              {recipientCPayId || formatWalletFingerprint(recipientAddress)}
+            </Text>
+          </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+
+      {/* Recipient Address Input - Hide when recipient is fetched or from QR */}
+      {!isFromQR && !recipientFetched && (
+        <FormField
+          label="Recipient C-Pay ID"
+          containerStyle={styles.field}
+          placeholder="name@cpayk8f3qz"
+          value={recipientInput}
+          onChangeText={handleAddressChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+          monospace
+          leftIcon="person-outline"
+          rightAction={{
+            icon: 'clipboard-outline',
+            onPress: handlePasteAddress,
+            accessibilityLabel: 'Paste recipient address',
+          }}
+          helper={fetchingRecipient ? 'Looking up recipient...' : undefined}
+        />
+      )}
+
+      {/* Change Recipient Button - Show when recipient is fetched (not from QR) */}
+      {!isFromQR && recipientFetched && (
+        <TouchableOpacity
+          style={styles.changeRecipientButton}
+          onPress={() => {
+            setRecipientInput('');
+            setRecipientAddress('');
+            setRecipientName('');
+            setRecipientCPayId('');
+            setRecipientFetched(false);
+          }}
+        >
+          <Text style={styles.changeRecipientText}>Change Recipient</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Amount Input */}
+      <AmountInput
+        label="Amount"
+        containerStyle={styles.field}
+        value={amount}
+        onChangeText={setAmount}
+        editable={!hasPresetAmount}
+        quickAmounts={['10', '50', '100', '500']}
+      />
+
+      {/* Note Input (Optional) */}
+      <FormField
+        label="Add Note (Optional)"
+        containerStyle={styles.field}
+        placeholder="e.g., Lunch payment, Rent, etc."
+        value={note}
+        onChangeText={setNote}
+        maxLength={50}
+      />
+
+      {/* Info */}
+      <InfoBanner
+        variant="info"
+        message={`${PILOT_TESTNET_TEXT} Payments typically confirm in 5-10 seconds.`}
+      />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: SPACING.lg,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.sm,
-  },
-  backButtonText: {
-    fontSize: 24,
-    color: COLORS.text,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  placeholder: {
-    width: 40,
+  field: {
+    marginBottom: SPACING.xl,
   },
   balanceCard: {
     backgroundColor: COLORS.primary,
@@ -713,12 +627,7 @@ const styles = StyleSheet.create({
     color: COLORS.textInverse,
     opacity: 0.9,
     fontWeight: '600',
-  },
-  balanceUsd: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textInverse,
-    opacity: 0.7,
-    marginTop: SPACING.xs,
+    marginRight: SPACING.xs,
   },
   recipientCard: {
     backgroundColor: COLORS.surface,
@@ -758,12 +667,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  fetchingText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
-    marginTop: SPACING.xs,
-    fontStyle: 'italic',
-  },
   changeRecipientButton: {
     alignSelf: 'flex-start',
     marginBottom: SPACING.lg,
@@ -773,190 +676,5 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '600',
     textDecorationLine: 'underline',
-  },
-  inputSection: {
-    marginBottom: SPACING.xl,
-  },
-  inputLabel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  inputDisabled: {
-    backgroundColor: COLORS.background,
-    color: COLORS.textSecondary,
-  },
-  recipientNameBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.successBg,
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    marginBottom: SPACING.sm,
-    alignSelf: 'flex-start',
-  },
-  recipientNameIcon: {
-    fontSize: 14,
-    marginRight: SPACING.xs,
-  },
-  recipientNameText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.success,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  input: {
-    flex: 1,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    padding: SPACING.md,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  inputButton: {
-    padding: SPACING.md,
-  },
-  inputButtonText: {
-    fontSize: 20,
-  },
-  scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primaryLight + '20',
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginTop: SPACING.sm,
-  },
-  scanButtonIcon: {
-    fontSize: 20,
-    marginRight: SPACING.sm,
-  },
-  scanButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-  },
-  currencySymbol: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginRight: SPACING.xs,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.text,
-    paddingVertical: SPACING.md,
-  },
-  currencyLabel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
-  conversionInfo: {
-    backgroundColor: COLORS.successBg,
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    marginTop: SPACING.sm,
-    alignSelf: 'flex-start',
-  },
-  conversionText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.success,
-  },
-  quickAmountContainer: {
-    flexDirection: 'row',
-    marginTop: SPACING.md,
-    marginHorizontal: -SPACING.xs,
-  },
-  quickAmountButton: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.sm,
-    marginHorizontal: SPACING.xs,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  quickAmountText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  noteInput: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-  },
-  sendButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.md,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    ...SHADOWS.sm,
-    elevation: 2,
-  },
-  sendButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonEmoji: {
-    marginRight: SPACING.sm,
-  },
-  sendButtonText: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '800',
-    color: COLORS.textInverse,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.infoBg,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    alignItems: 'center',
-  },
-  infoIcon: {
-    marginRight: SPACING.sm,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
   },
 });

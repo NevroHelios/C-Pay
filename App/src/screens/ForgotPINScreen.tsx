@@ -4,11 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { 
@@ -19,6 +16,7 @@ import {
 } from '../services/wallet';
 import { isBiometricAvailable, getBiometricType } from '../utils/biometric';
 import { PINInput } from '../components/PINInput';
+import { Screen } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, generateCPayId } from '../utils/cpayId';
@@ -190,7 +188,7 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
 
   if (step === 'new-pin') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} topInset={false} padded={false}>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconCircle}>
@@ -218,13 +216,13 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (step === 'confirm-pin') {
     return (
-      <SafeAreaView style={styles.container}>
+      <Screen scroll={false} topInset={false} padded={false}>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconCircle}>
@@ -253,13 +251,13 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   // Info step
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen scroll={false} topInset={false} padded={false}>
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.largeIconCircle}>
@@ -319,7 +317,7 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 };
 

@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   Image,
 } from 'react-native';
@@ -16,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAsMerchant, uploadMerchantLogo } from '../services/merchant';
 import { sendEmailOTP, verifyEmailOTP } from '../services/auth';
 import { PINInput } from '../components/PINInput';
+import { Screen, Header, FormField, Button } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -301,212 +300,169 @@ export const MerchantRegistrationScreen: React.FC<
   const emailOTPComplete = emailOTP.length === MERCHANT_EMAIL_OTP_LENGTH;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Header with Back Button */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity
-          style={styles.backButtonTop}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Merchant Registration</Text>
-        <View style={{ width: 24 }} />
+    <Screen header={<Header title="Merchant Registration" onBack={() => navigation.goBack()} />}>
+      <View style={styles.header}>
+        <View style={styles.headerIcon}>
+          <Ionicons name="storefront-outline" size={40} color={COLORS.primary} />
+        </View>
+        <Text style={styles.title}>Become a Merchant</Text>
+        <Text style={styles.subtitle}>
+          Fill in your business details to start accepting payments
+        </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="storefront-outline" size={40} color={COLORS.primary} />
+      <View style={styles.form}>
+        {/* Business Logo */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business Logo (Optional)</Text>
+          <View style={styles.logoContainer}>
+            <TouchableOpacity style={styles.logoButton} onPress={handlePickLogo}>
+              {logoUri ? (
+                <Image source={{ uri: logoUri }} style={styles.logoPreview} />
+              ) : (
+                <View style={styles.logoPlaceholder}>
+                  <Ionicons name="image-outline" size={40} color={COLORS.textSecondary} />
+                  <Text style={styles.logoPlaceholderText}>Add Logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.logoHint}>
+              {logoUri ? 'Tap to change logo' : 'Recommended: Square image, 512x512px or larger'}
+            </Text>
           </View>
-          <Text style={styles.title}>Become a Merchant</Text>
-          <Text style={styles.subtitle}>
-            Fill in your business details to start accepting payments
-          </Text>
         </View>
 
-        <View style={styles.form}>
-          {/* Business Logo */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Logo (Optional)</Text>
-            <View style={styles.logoContainer}>
-              <TouchableOpacity style={styles.logoButton} onPress={handlePickLogo}>
-                {logoUri ? (
-                  <Image source={{ uri: logoUri }} style={styles.logoPreview} />
+        {/* Business Name */}
+        <FormField
+          label="Business Name *"
+          containerStyle={styles.inputGroup}
+          value={businessName}
+          onChangeText={setBusinessName}
+          placeholder="e.g., Joe's Coffee Shop"
+        />
+
+        {/* Owner/Contact Name */}
+        <FormField
+          label="Owner/Contact Person *"
+          containerStyle={styles.inputGroup}
+          value={ownerName}
+          onChangeText={setOwnerName}
+          placeholder="Full name of owner or manager"
+        />
+
+        {/* Email */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business Email *</Text>
+          <View style={styles.inputWithButton}>
+            <TextInput
+              style={[styles.input, styles.inputWithVerify]}
+              value={email}
+              onChangeText={handleEmailChange}
+              placeholder="contact@yourbusiness.com"
+              placeholderTextColor={COLORS.textSecondary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!emailVerified}
+            />
+            {emailVerified ? (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                <Text style={styles.verifiedText}>Verified</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.verifyButton, emailOTPLoading && styles.buttonDisabled]}
+                onPress={handleSendEmailOTP}
+                disabled={emailOTPLoading}
+              >
+                {emailOTPLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.card} />
                 ) : (
-                  <View style={styles.logoPlaceholder}>
-                    <Ionicons name="image-outline" size={40} color={COLORS.textSecondary} />
-                    <Text style={styles.logoPlaceholderText}>Add Logo</Text>
-                  </View>
+                  <Text style={styles.verifyButtonText}>Send code</Text>
                 )}
               </TouchableOpacity>
-              <Text style={styles.logoHint}>
-                {logoUri ? 'Tap to change logo' : 'Recommended: Square image, 512x512px or larger'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Business Name */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Name *</Text>
-            <TextInput
-              style={styles.input}
-              value={businessName}
-              onChangeText={setBusinessName}
-              placeholder="e.g., Joe's Coffee Shop"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-          </View>
-
-          {/* Owner/Contact Name */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Owner/Contact Person *</Text>
-            <TextInput
-              style={styles.input}
-              value={ownerName}
-              onChangeText={setOwnerName}
-              placeholder="Full name of owner or manager"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-          </View>
-
-          {/* Email */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Email *</Text>
-            <View style={styles.inputWithButton}>
-              <TextInput
-                style={[styles.input, styles.inputWithVerify]}
-                value={email}
-                onChangeText={handleEmailChange}
-                placeholder="contact@yourbusiness.com"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!emailVerified}
-              />
-              {emailVerified ? (
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.verifyButton, emailOTPLoading && styles.buttonDisabled]}
-                  onPress={handleSendEmailOTP}
-                  disabled={emailOTPLoading}
-                >
-                  {emailOTPLoading ? (
-                    <ActivityIndicator size="small" color={COLORS.card} />
-                  ) : (
-                    <Text style={styles.verifyButtonText}>Send code</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          {/* Phone Number */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contact Phone Number *</Text>
-            <View style={styles.inputWithButton}>
-              <TextInput
-                style={[styles.input, styles.inputWithVerify]}
-                value={phoneNumber}
-                onChangeText={handlePhoneNumberChange}
-                placeholder="+1234567890"
-                placeholderTextColor={COLORS.textSecondary}
-                keyboardType="phone-pad"
-                maxLength={MERCHANT_PHONE_MAX_DIGITS + 1}
-              />
-            </View>
-          </View>
-
-          {/* Business Address */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Address *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={businessAddress}
-              onChangeText={setBusinessAddress}
-              placeholder="Street address, City, State, ZIP"
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              numberOfLines={2}
-            />
-          </View>
-
-          {/* Business Registration Number (Optional) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Registration Number (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={businessRegistrationNumber}
-              onChangeText={setBusinessRegistrationNumber}
-              placeholder="Tax ID or Business License Number"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-          </View>
-
-          {/* Category Dropdown */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Category *</Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setShowCategoryDropdown(true)}
-            >
-              <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
-                {category
-                  ? CATEGORIES.find(c => c.value === category)?.label || customCategory
-                  : 'Select a category'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Custom Category Input (if "Other" selected) */}
-          {category === 'other' && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Specify Your Category *</Text>
-              <TextInput
-                style={styles.input}
-                value={customCategory}
-                onChangeText={setCustomCategory}
-                placeholder="e.g., Pet Services, Agriculture, etc."
-                placeholderTextColor={COLORS.textSecondary}
-              />
-            </View>
-          )}
-
-          {/* Description */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Description (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Tell customers about your business and services..."
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.card} />
-            ) : (
-              <Text style={styles.buttonText}>Register as Merchant</Text>
             )}
+          </View>
+        </View>
+
+        {/* Phone Number */}
+        <FormField
+          label="Contact Phone Number *"
+          containerStyle={styles.inputGroup}
+          value={phoneNumber}
+          onChangeText={handlePhoneNumberChange}
+          placeholder="+1234567890"
+          keyboardType="phone-pad"
+          maxLength={MERCHANT_PHONE_MAX_DIGITS + 1}
+        />
+
+        {/* Business Address */}
+        <FormField
+          label="Business Address *"
+          containerStyle={styles.inputGroup}
+          value={businessAddress}
+          onChangeText={setBusinessAddress}
+          placeholder="Street address, City, State, ZIP"
+          multiline
+        />
+
+        {/* Business Registration Number (Optional) */}
+        <FormField
+          label="Business Registration Number (Optional)"
+          containerStyle={styles.inputGroup}
+          value={businessRegistrationNumber}
+          onChangeText={setBusinessRegistrationNumber}
+          placeholder="Tax ID or Business License Number"
+        />
+
+        {/* Category Dropdown */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business Category *</Text>
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() => setShowCategoryDropdown(true)}
+          >
+            <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
+              {category
+                ? CATEGORIES.find(c => c.value === category)?.label || customCategory
+                : 'Select a category'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         </View>
-      </ScrollView>
+
+        {/* Custom Category Input (if "Other" selected) */}
+        {category === 'other' && (
+          <FormField
+            label="Specify Your Category *"
+            containerStyle={styles.inputGroup}
+            value={customCategory}
+            onChangeText={setCustomCategory}
+            placeholder="e.g., Pet Services, Agriculture, etc."
+          />
+        )}
+
+        {/* Description */}
+        <FormField
+          label="Business Description (Optional)"
+          containerStyle={styles.inputGroup}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Tell customers about your business and services..."
+          multiline
+        />
+
+        <Button
+          title="Register as Merchant"
+          onPress={handleRegister}
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={loading}
+          disabled={loading}
+          style={styles.submitButton}
+        />
+      </View>
 
       {/* Category Dropdown Modal */}
       <Modal
@@ -627,38 +583,11 @@ export const MerchantRegistrationScreen: React.FC<
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.xl * 2,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButtonTop: {
-    padding: SPACING.xs,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  scrollContent: {
-    padding: SPACING.lg,
-    paddingTop: SPACING.lg,
-  },
   header: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
@@ -726,11 +655,7 @@ const styles = StyleSheet.create({
   dropdownPlaceholder: {
     color: COLORS.textSecondary,
   },
-  button: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
+  submitButton: {
     marginTop: SPACING.md,
   },
   buttonDisabled: {

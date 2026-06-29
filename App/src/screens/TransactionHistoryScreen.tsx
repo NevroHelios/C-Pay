@@ -4,9 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
-  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,7 +12,7 @@ import { getTransactions, Transaction } from '../services/storage';
 import { pollPendingTransactions } from '../services/transactionMonitor';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { TransactionItem, LoadingSpinner, EmptyState, TransactionDetailModal } from '../components';
+import { TransactionItem, LoadingSpinner, EmptyState, TransactionDetailModal, Screen, Header } from '../components';
 
 interface TransactionHistoryScreenProps {
   navigation: any;
@@ -153,27 +151,24 @@ export const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> =
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.title}>Transactions</Text>
-          {realtimeConnected && (
-            <View style={styles.liveIndicator}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
-          )}
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
-
+    <Screen
+      scroll={false}
+      padded={false}
+      header={
+        <Header
+          title="Transactions"
+          onBack={() => navigation.goBack()}
+          right={
+            realtimeConnected ? (
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Live</Text>
+              </View>
+            ) : undefined
+          }
+        />
+      }
+    >
       {/* Transaction List */}
       {transactions.length === 0 ? (
         <EmptyState
@@ -220,49 +215,14 @@ export const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> =
         }}
         currentWallet={currentWallet}
       />
-    </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'ios' ? 50 : SPACING.xl,
-    paddingBottom: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    fontSize: FONT_SIZES.xxl,
-    color: COLORS.textPrimary,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.xs,
   },
   liveDot: {
     width: 6,

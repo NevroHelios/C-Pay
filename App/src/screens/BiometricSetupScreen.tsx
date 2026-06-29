@@ -3,13 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
   Dimensions,
-  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { isBiometricAvailable, getBiometricType, enableBiometric } from '../utils/biometric';
@@ -17,6 +12,7 @@ import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, SHADOWS } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import { OnboardingProgress } from '../components/OnboardingProgress';
+import { Screen, Button } from '../components';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const { width, height } = Dimensions.get('window');
@@ -139,16 +135,12 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <Screen padded={false} contentContainerStyle={styles.scrollContent}>
       <OnboardingProgress
         currentStep={flowType === 'restore' ? 3 : 5}
         flowType={flowType}
       />
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
+      <View style={styles.flexFill}>
         <View style={styles.content}>
           {/* Icon */}
           <View style={styles.iconContainer}>
@@ -193,33 +185,26 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
         {/* Buttons at bottom */}
         <View style={styles.buttonContainer}>
           {isAvailable && (
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+            <Button
+              title={`Enable ${getBiometricName()}`}
               onPress={handleEnableBiometric}
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={loading}
               disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.card} />
-              ) : (
-                <Text style={styles.primaryButtonText}>
-                  Enable {getBiometricName()}
-                </Text>
-              )}
-            </TouchableOpacity>
+            />
           )}
 
-          <TouchableOpacity
-            style={[styles.secondaryButton, !isAvailable && styles.primaryButton]}
+          <Button
+            title={isAvailable ? 'Use PIN Instead' : 'Get Started'}
             onPress={handleSkip}
+            variant={isAvailable ? 'secondary' : 'primary'}
+            size="lg"
+            fullWidth
             disabled={loading}
-          >
-            <Text style={[
-              styles.secondaryButtonText,
-              !isAvailable && styles.primaryButtonText
-            ]}>
-              {isAvailable ? 'Use PIN Instead' : 'Get Started'}
-            </Text>
-          </TouchableOpacity>
+            style={isAvailable ? styles.secondarySpacing : undefined}
+          />
 
           {isAvailable && (
             <Text style={styles.skipNote}>
@@ -227,22 +212,21 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
             </Text>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: SPACING.xl,
+  },
+  flexFill: {
+    flex: 1,
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
-    paddingTop: isSmallDevice ? SPACING.xl : SPACING.xl * 2,
-    paddingBottom: SPACING.xl,
+    paddingTop: isSmallDevice ? SPACING.lg : SPACING.xl,
   },
   content: {
     alignItems: 'center',
@@ -301,34 +285,8 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: SPACING.xl,
   },
-  primaryButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: isSmallDevice ? SPACING.md : SPACING.lg,
-    borderRadius: 14,
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  primaryButtonText: {
-    color: COLORS.card,
-    fontSize: isSmallDevice ? FONT_SIZES.md : FONT_SIZES.lg,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: isSmallDevice ? SPACING.md : SPACING.lg,
-    borderRadius: 14,
-    alignItems: 'center',
+  secondarySpacing: {
     marginTop: SPACING.md,
-  },
-  secondaryButtonText: {
-    color: COLORS.textSecondary,
-    fontSize: isSmallDevice ? FONT_SIZES.md : FONT_SIZES.lg,
-    fontWeight: '500',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   skipNote: {
     fontSize: FONT_SIZES.xs,

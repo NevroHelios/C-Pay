@@ -4,11 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   RefreshControl,
   Animated,
-  Modal,
-  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,7 +19,16 @@ import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { MONEY_BALANCE_LABEL, MONEY_SYMBOL, formatMoneyAmount } from '../utils/currency';
 import { PILOT_NOTICE_TEXT, PILOT_NOTICE_TITLE } from '../utils/pilot';
-import { LoadingSpinner, TransactionItem, TransactionDetailModal } from '../components';
+import {
+  LoadingSpinner,
+  TransactionItem,
+  TransactionDetailModal,
+  Screen,
+  Section,
+  InfoBanner,
+  StatusSheet,
+} from '../components';
+import type { StatusSheetVariant, StatusSheetAction } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 
 interface HomeScreenProps {
@@ -415,21 +421,65 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   }
 
+  // Derive the add-money status sheet presentation from the current phase.
+  const statusVariant: StatusSheetVariant = isAddMoneyBusy
+    ? 'loading'
+    : addMoneyPhase === 'success'
+      ? 'success'
+      : addMoneyPhase === 'cooldown'
+        ? 'warning'
+        : addMoneyPhase === 'error'
+          ? 'error'
+          : 'info';
+
+  const statusMessage = addMoneyTxHash
+    ? `${visibleAddMoneyMessage}\n\nTx ${addMoneyTxHash.slice(0, 10)}...${addMoneyTxHash.slice(-8)}`
+    : visibleAddMoneyMessage;
+
+  let statusActions: StatusSheetAction[] | undefined;
+  if (addMoneyPhase === 'confirm') {
+    statusActions = [
+      { label: 'Claim', onPress: startAddMoney },
+      { label: 'Cancel', onPress: closeAddMoneyStatus, variant: 'secondary' },
+    ];
+  } else if (addMoneyPhase === 'success') {
+    statusActions = [
+      { label: 'Done', onPress: closeAddMoneyStatus },
+      {
+        label: 'View History',
+        onPress: () => {
+          closeAddMoneyStatus();
+          navigation.navigate('TransactionHistory');
+        },
+        variant: 'secondary',
+      },
+    ];
+  } else if (addMoneyPhase === 'cooldown') {
+    statusActions = addMoneyRetryAfterSeconds <= 0
+      ? [
+          { label: 'Claim Now', onPress: startAddMoney },
+          { label: 'Close', onPress: closeAddMoneyStatus, variant: 'secondary' },
+        ]
+      : [{ label: 'Close', onPress: closeAddMoneyStatus }];
+  } else if (addMoneyPhase === 'error') {
+    statusActions = [
+      { label: 'Try Again', onPress: startAddMoney },
+      { label: 'Close', onPress: closeAddMoneyStatus, variant: 'secondary' },
+    ];
+  }
+
   return (
-    <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
+    <Screen
+      topInset={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[COLORS.primary]}
+          tintColor={COLORS.primary}
+        />
+      }
+    >
       {/* Balance Card with Gradient */}
       <Animated.View
         style={{
@@ -497,16 +547,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </View>
 
       {/* Recent Transactions Section */}
-      <View style={styles.transactionsSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Transactions</Text>
-          {transactions.length > 0 && (
-            <TouchableOpacity onPress={() => navigation.navigate('TransactionHistory')}>
-              <Text style={styles.seeAllText}>See All →</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        
+      <Section
+        title="Recent Transactions"
+        actionLabel={transactions.length > 0 ? 'See All' : undefined}
+        onActionPress={() => navigation.navigate('TransactionHistory')}
+      >
         {transactions.length === 0 ? (
           <View style={styles.emptyTransactions}>
             <Ionicons name="card-outline" size={44} color={COLORS.textTertiary} style={styles.emptyIcon} />
@@ -538,18 +583,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             ))}
           </View>
         )}
-      </View>
+      </Section>
 
       {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="information-circle-outline" size={20} color={COLORS.infoDark} style={styles.infoBannerIcon} />
-        <View style={styles.infoBannerContent}>
-          <Text style={styles.infoBannerTitle}>{PILOT_NOTICE_TITLE}</Text>
-          <Text style={styles.infoBannerText}>
-            {PILOT_NOTICE_TEXT}
-          </Text>
-        </View>
-      </View>
+      <InfoBanner
+        variant="info"
+        title={PILOT_NOTICE_TITLE}
+        message={PILOT_NOTICE_TEXT}
+      />
 
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
@@ -561,149 +602,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }}
         currentWallet={walletAddress}
       />
-      </ScrollView>
 
-      <Modal
+      {/* Add-money / claim credits status flow */}
+      <StatusSheet
         visible={addMoneyPhase !== 'idle'}
-        transparent
-        animationType="fade"
-        onRequestClose={closeAddMoneyStatus}
-      >
-        <View style={styles.addMoneyOverlay}>
-          <View style={styles.addMoneyModal}>
-            <View
-              style={[
-                styles.addMoneyIcon,
-                addMoneyPhase === 'success' && styles.addMoneyIconSuccess,
-                addMoneyPhase === 'cooldown' && styles.addMoneyIconCooldown,
-                addMoneyPhase === 'error' && styles.addMoneyIconError,
-              ]}
-            >
-              {isAddMoneyBusy ? (
-                <ActivityIndicator color={COLORS.primary} />
-              ) : (
-                <Ionicons
-                  name={
-                    addMoneyPhase === 'success'
-                      ? 'checkmark-circle'
-                      : addMoneyPhase === 'cooldown'
-                        ? 'time-outline'
-                      : addMoneyPhase === 'error'
-                        ? 'alert-circle'
-                        : 'add-circle'
-                  }
-                  size={30}
-                  color={
-                    addMoneyPhase === 'success'
-                      ? COLORS.success
-                      : addMoneyPhase === 'cooldown'
-                        ? COLORS.warning
-                      : addMoneyPhase === 'error'
-                        ? COLORS.error
-                        : COLORS.primary
-                  }
-                />
-              )}
-            </View>
-
-            <Text style={styles.addMoneyTitle}>{getAddMoneyTitle(addMoneyPhase)}</Text>
-
-            <Text style={styles.addMoneyMessage}>{visibleAddMoneyMessage}</Text>
-
-            {!!addMoneyTxHash && (
-              <Text style={styles.addMoneyHash} numberOfLines={1}>
-                Tx {addMoneyTxHash.slice(0, 10)}...{addMoneyTxHash.slice(-8)}
-              </Text>
-            )}
-
-            {addMoneyPhase === 'confirm' && (
-              <View style={styles.addMoneyButtonRow}>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneySecondaryButton]}
-                  onPress={closeAddMoneyStatus}
-                >
-                  <Text style={styles.addMoneySecondaryText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
-                  onPress={startAddMoney}
-                >
-                  <Text style={styles.addMoneyPrimaryText}>Claim</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {addMoneyPhase === 'success' && (
-              <View style={styles.addMoneyButtonRow}>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneySecondaryButton]}
-                  onPress={() => {
-                    closeAddMoneyStatus();
-                    navigation.navigate('TransactionHistory');
-                  }}
-                >
-                  <Text style={styles.addMoneySecondaryText}>View History</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
-                  onPress={closeAddMoneyStatus}
-                >
-                  <Text style={styles.addMoneyPrimaryText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {addMoneyPhase === 'cooldown' && (
-              <View style={styles.addMoneyButtonRow}>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneySecondaryButton]}
-                  onPress={closeAddMoneyStatus}
-                >
-                  <Text style={styles.addMoneySecondaryText}>Close</Text>
-                </TouchableOpacity>
-                {addMoneyRetryAfterSeconds <= 0 && (
-                  <TouchableOpacity
-                    style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
-                    onPress={startAddMoney}
-                  >
-                    <Text style={styles.addMoneyPrimaryText}>Claim Now</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {addMoneyPhase === 'error' && (
-              <View style={styles.addMoneyButtonRow}>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneySecondaryButton]}
-                  onPress={closeAddMoneyStatus}
-                >
-                  <Text style={styles.addMoneySecondaryText}>Close</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addMoneyButton, styles.addMoneyPrimaryButton]}
-                  onPress={startAddMoney}
-                >
-                  <Text style={styles.addMoneyPrimaryText}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </>
+        variant={statusVariant}
+        title={getAddMoneyTitle(addMoneyPhase)}
+        message={statusMessage}
+        actions={statusActions}
+        onRequestClose={isAddMoneyBusy ? undefined : closeAddMoneyStatus}
+      />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-    paddingTop: SPACING.md,
-  },
   balanceCard: {
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
@@ -786,25 +699,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: 'center',
   },
-  transactionsSection: {
-    marginBottom: SPACING.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  seeAllText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
   transactionsList: {
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
@@ -831,118 +725,5 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-  },
-  infoBanner: {
-    backgroundColor: COLORS.infoBg,
-    borderRadius: 12,
-    padding: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  infoBannerIcon: {
-    marginRight: SPACING.sm,
-  },
-  infoBannerContent: {
-    flex: 1,
-  },
-  infoBannerTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.infoDark,
-    marginBottom: 2,
-  },
-  infoBannerText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-  },
-  addMoneyOverlay: {
-    flex: 1,
-    backgroundColor: COLORS.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.lg,
-  },
-  addMoneyModal: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    ...SHADOWS.lg,
-  },
-  addMoneyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primaryLight,
-    marginBottom: SPACING.lg,
-  },
-  addMoneyIconSuccess: {
-    backgroundColor: COLORS.successBg,
-  },
-  addMoneyIconCooldown: {
-    backgroundColor: COLORS.warningBg,
-  },
-  addMoneyIconError: {
-    backgroundColor: COLORS.errorBg,
-  },
-  addMoneyTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
-  addMoneyMessage: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 21,
-  },
-  addMoneyHash: {
-    width: '100%',
-    marginTop: SPACING.md,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.background,
-    color: COLORS.textSecondary,
-    fontSize: FONT_SIZES.xs,
-    textAlign: 'center',
-  },
-  addMoneyButtonRow: {
-    flexDirection: 'row',
-    width: '100%',
-    marginTop: SPACING.xl,
-    gap: SPACING.sm,
-  },
-  addMoneyButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: BORDER_RADIUS.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.md,
-  },
-  addMoneyPrimaryButton: {
-    backgroundColor: COLORS.primary,
-  },
-  addMoneySecondaryButton: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  addMoneyPrimaryText: {
-    color: COLORS.textInverse,
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
-  },
-  addMoneySecondaryText: {
-    color: COLORS.text,
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
   },
 });

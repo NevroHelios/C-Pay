@@ -3,15 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { generatePaymentQR } from '../utils/qrCode';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { MONEY_UNIT_LABEL } from '../utils/currency';
+import { Screen, FormField, Button } from '../components';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 
@@ -37,7 +35,7 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
   }, []);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <Screen topInset={false}>
       <View style={styles.header}>
         <Text style={styles.title}>QR Code Generator</Text>
         <Text style={styles.subtitle}>Create a Stellar testnet payment request</Text>
@@ -45,54 +43,48 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
 
       {/* Input Fields */}
       <View style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Merchant Name</Text>
-          <TextInput
-            style={styles.input}
-            value={merchantName}
-            onChangeText={setMerchantName}
-            placeholder="Enter merchant name"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-        </View>
+        <FormField
+          containerStyle={styles.inputGroup}
+          label="Merchant Name"
+          value={merchantName}
+          onChangeText={setMerchantName}
+          placeholder="Enter merchant name"
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount ({MONEY_UNIT_LABEL})</Text>
-          <TextInput
-            style={styles.input}
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="Enter amount"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="decimal-pad"
-          />
-        </View>
+        <FormField
+          containerStyle={styles.inputGroup}
+          label={`Amount (${MONEY_UNIT_LABEL})`}
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="Enter amount"
+          keyboardType="decimal-pad"
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Merchant Address</Text>
-          <TextInput
-            style={[styles.input, styles.addressInput]}
-            value={merchantAddress}
-            onChangeText={setMerchantAddress}
-            placeholder="Enter Stellar account"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-        </View>
+        <FormField
+          containerStyle={styles.inputGroup}
+          label="Merchant Address"
+          value={merchantAddress}
+          onChangeText={setMerchantAddress}
+          placeholder="Enter Stellar account"
+          monospace
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Note (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder="Enter note"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-        </View>
+        <FormField
+          containerStyle={styles.inputGroup}
+          label="Note (Optional)"
+          value={note}
+          onChangeText={setNote}
+          placeholder="Enter note"
+        />
 
-        <TouchableOpacity style={styles.generateButton} onPress={handleGenerateQR}>
-          <Text style={styles.generateButtonText}>Generate QR Code</Text>
-        </TouchableOpacity>
+        <Button
+          title="Generate QR Code"
+          onPress={handleGenerateQR}
+          variant="primary"
+          size="lg"
+          fullWidth
+          style={styles.generateButton}
+        />
       </View>
 
       {/* QR Code Display */}
@@ -107,18 +99,11 @@ export const QRGeneratorScreen: React.FC<QRGeneratorScreenProps> = ({ navigation
           </View>
         </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    padding: SPACING.lg,
-  },
   header: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
@@ -140,36 +125,8 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: SPACING.md,
   },
-  label: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-  },
-  addressInput: {
-    fontFamily: 'monospace',
-    fontSize: FONT_SIZES.sm,
-  },
   generateButton: {
-    backgroundColor: COLORS.primary,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    alignItems: 'center',
     marginTop: SPACING.md,
-  },
-  generateButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.card,
   },
   qrContainer: {
     alignItems: 'center',

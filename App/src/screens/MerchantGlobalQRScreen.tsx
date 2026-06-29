@@ -17,6 +17,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Clipboard from 'expo-clipboard';
 import { getMerchantProfile } from '../services/merchant';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { Screen, Header } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentMerchantCPayId } from '../utils/cpayId';
 import { generatePaymentQRWithId } from '../utils/qrCode';
@@ -142,32 +143,19 @@ export const MerchantGlobalQRScreen: React.FC<MerchantGlobalQRScreenProps> = ({
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Payment QR</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-      </View>
-
+    <Screen
+      loading={loading}
+      header={
+        <Header
+          title="My Payment QR"
+          onBack={() => navigation.goBack()}
+          actions={[{ icon: 'share-outline', onPress: handleShare, accessibilityLabel: 'Share payment QR' }]}
+        />
+      }
+    >
       {/* Content */}
-      <View style={styles.content}>
+      <View>
         <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }}>
           <View style={styles.qrCard}>
             <View style={styles.infoCard}>
@@ -234,46 +222,11 @@ export const MerchantGlobalQRScreen: React.FC<MerchantGlobalQRScreenProps> = ({
         </View>
 
       </View>
-    </View>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.xl * 2,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  backButton: {
-    padding: SPACING.xs,
-  },
-  shareButton: {
-    padding: SPACING.xs,
-  },
-  headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  content: {
-    flex: 1,
-    padding: SPACING.lg,
-  },
   qrCard: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
