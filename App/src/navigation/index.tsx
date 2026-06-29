@@ -19,7 +19,6 @@ import { RestoreWalletScreen } from '../screens/RestoreWalletScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ScanScreen } from '../screens/ScanScreen';
-import { PaymentConfirmScreen } from '../screens/PaymentConfirmScreen';
 import { QRGeneratorScreen } from '../screens/QRGeneratorScreen';
 import { TransactionHistoryScreen } from '../screens/TransactionHistoryScreen';
 import { MerchantRegistrationScreen } from '../screens/MerchantRegistrationScreen';
@@ -32,7 +31,6 @@ import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { PaymentProcessingScreen } from '../screens/PaymentProcessingScreen';
 import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { PaymentFailureScreen } from '../screens/PaymentFailureScreen';
-import { PaymentQRData } from '../utils/qrCode';
 import { COLORS, SPACING } from '../constants/theme';
 
 type RootStackParamList = {
@@ -67,10 +65,9 @@ type RootStackParamList = {
     isMerchantPayment?: boolean;
     isFromQR?: boolean;
   };
-  PaymentConfirm: { paymentData: PaymentQRData };
   PaymentProcessing: { amount: string; recipientName: string; recipientAddress: string };
   PaymentSuccess: { transactionHash: string; fromAddress: string; amount: string; recipientName: string; recipientAddress: string; processingTime?: number; timestamp?: string; note?: string; isMerchantPayment?: boolean };
-  PaymentFailure: { amount: string; recipientName: string; recipientAddress: string; errorMessage?: string; errorReason?: string; errorCode?: string; timestamp?: string };
+  PaymentFailure: { amount: string; recipientName: string; recipientAddress: string; errorMessage?: string; errorReason?: string; errorCode?: string; category?: 'retryable' | 'support'; timestamp?: string };
   QRGenerator: undefined;
   TransactionHistory: { highlightTransaction?: string };
   MerchantRegistration: undefined;
@@ -210,15 +207,8 @@ export const Navigation = () => {
             headerShown: false,
           }}
         />
-        <Stack.Screen 
-          name="PaymentConfirm" 
-          component={PaymentConfirmScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen 
-          name="PaymentProcessing" 
+        <Stack.Screen
+          name="PaymentProcessing"
           component={PaymentProcessingScreen as any}
           options={{
             headerShown: false,

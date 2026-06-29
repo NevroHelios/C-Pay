@@ -164,8 +164,12 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
             <View style={styles.successIcon}>
               <Ionicons name="checkmark" size={46} color={COLORS.success} />
             </View>
-            <Text style={styles.successTitle}>Payment Successful</Text>
+            <Text style={styles.successTitle}>Payment Sent</Text>
             <Text style={styles.amountText}>{formatMoneyAmount(parseFloat(amount))}</Text>
+            <View style={styles.statusChip}>
+              <Ionicons name="paper-plane" size={13} color={COLORS.textInverse} />
+              <Text style={styles.statusChipText}>Submitted · confirming on network</Text>
+            </View>
           </Animated.View>
 
           {/* Receipt Card - Wrapped for receipt capture */}
@@ -323,6 +327,21 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statusChipText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+    color: COLORS.textInverse,
   },
   // Receipt Card
   receiptCard: {
