@@ -39,6 +39,8 @@ const merchantByAddressCache = new Map<string, {
 }>();
 const merchantByAddressInFlight = new Map<string, Promise<Merchant | null>>();
 
+const CONTRACT_SYNCED_KEY = 'merchant_contract_synced';
+
 async function cacheMerchantLocalState(merchant: Merchant): Promise<void> {
   if (!merchant.id || merchant.is_active === false) {
     return;
@@ -48,6 +50,46 @@ async function cacheMerchantLocalState(merchant: Merchant): Promise<void> {
     ['is_merchant', 'true'],
     ['merchant_id', merchant.id],
   ]);
+}
+
+/**
+ * Whether the merchant's on-chain contract record has been synced. Merchant QR
+ * payments only work once this is true, so the dashboard surfaces it and offers
+ * a retry when it is false.
+ */
+export async function getContractSyncState(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(CONTRACT_SYNCED_KEY)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function setContractSyncState(synced: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CONTRACT_SYNCED_KEY, synced ? 'true' : 'false');
+  } catch {
+    // Non-fatal — the dashboard can still retry.
+  }
+}
+
+/**
+ * Retry the on-chain contract registration for a merchant. Used by the
+ * dashboard's "failed contract sync" recovery path.
+ */
+export async function syncMerchantContract(
+  merchantId: string,
+  walletAddress: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await registerContractMerchant(merchantId, walletAddress);
+    await setContractSyncState(true);
+    merchantEvents.emit('merchantContractSynced');
+    return { success: true };
+  } catch (error: any) {
+    await setContractSyncState(false);
+    return { success: false, error: error?.message || 'Contract sync failed' };
+  }
 }
 
 export interface MerchantQRCode {
@@ -203,6 +245,7 @@ export async function registerAsMerchant(merchant: Merchant): Promise<{
 
     // Cache merchant status locally
     await cacheMerchantLocalState(data);
+    await setContractSyncState(contractSynced);
 
     // Emit event for real-time UI updates
     merchantEvents.emit('merchantRegistered', data);

@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerAsMerchant, uploadMerchantLogo } from '../services/merchant';
 import { sendEmailOTP, verifyEmailOTP } from '../services/auth';
 import { PINInput } from '../components/PINInput';
-import { Screen, Header, FormField, Button } from '../components';
+import { Screen, Header, FormField, Button, Section, InfoBanner } from '../components';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -281,7 +281,9 @@ export const MerchantRegistrationScreen: React.FC<
         if (result.contractSynced === false) {
           AlertManager.alert(
             'Merchant Saved',
-            'Your merchant profile was saved, but contract sync did not complete. Merchant QR payments may fail until the relayer is configured and synced.'
+            'Your profile is saved, but the on-chain contract sync did not finish. Open your dashboard and tap "Retry" under Business status to finish — QR payments work once it completes.',
+            undefined,
+            { type: 'warning' }
           );
         }
         // Replace registration screen with dashboard
@@ -312,144 +314,160 @@ export const MerchantRegistrationScreen: React.FC<
       </View>
 
       <View style={styles.form}>
-        {/* Business Logo */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Business Logo (Optional)</Text>
-          <View style={styles.logoContainer}>
-            <TouchableOpacity style={styles.logoButton} onPress={handlePickLogo}>
-              {logoUri ? (
-                <Image source={{ uri: logoUri }} style={styles.logoPreview} />
-              ) : (
-                <View style={styles.logoPlaceholder}>
-                  <Ionicons name="image-outline" size={40} color={COLORS.textSecondary} />
-                  <Text style={styles.logoPlaceholderText}>Add Logo</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <Text style={styles.logoHint}>
-              {logoUri ? 'Tap to change logo' : 'Recommended: Square image, 512x512px or larger'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Business Name */}
-        <FormField
-          label="Business Name *"
-          containerStyle={styles.inputGroup}
-          value={businessName}
-          onChangeText={setBusinessName}
-          placeholder="e.g., Joe's Coffee Shop"
-        />
-
-        {/* Owner/Contact Name */}
-        <FormField
-          label="Owner/Contact Person *"
-          containerStyle={styles.inputGroup}
-          value={ownerName}
-          onChangeText={setOwnerName}
-          placeholder="Full name of owner or manager"
-        />
-
-        {/* Email */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Business Email *</Text>
-          <View style={styles.inputWithButton}>
-            <TextInput
-              style={[styles.input, styles.inputWithVerify]}
-              value={email}
-              onChangeText={handleEmailChange}
-              placeholder="contact@yourbusiness.com"
-              placeholderTextColor={COLORS.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!emailVerified}
-            />
-            {emailVerified ? (
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-                <Text style={styles.verifiedText}>Verified</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.verifyButton, emailOTPLoading && styles.buttonDisabled]}
-                onPress={handleSendEmailOTP}
-                disabled={emailOTPLoading}
-              >
-                {emailOTPLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.card} />
+        {/* Section 1 — Business details */}
+        <Section title="Business details" subtitle="How customers will recognise you">
+          {/* Business Logo */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Business Logo (Optional)</Text>
+            <View style={styles.logoContainer}>
+              <TouchableOpacity style={styles.logoButton} onPress={handlePickLogo}>
+                {logoUri ? (
+                  <Image source={{ uri: logoUri }} style={styles.logoPreview} />
                 ) : (
-                  <Text style={styles.verifyButtonText}>Send code</Text>
+                  <View style={styles.logoPlaceholder}>
+                    <Ionicons name="image-outline" size={40} color={COLORS.textSecondary} />
+                    <Text style={styles.logoPlaceholderText}>Add Logo</Text>
+                  </View>
                 )}
               </TouchableOpacity>
+              <Text style={styles.logoHint}>
+                {logoUri ? 'Tap to change logo' : 'Recommended: Square image, 512x512px or larger'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Business Name */}
+          <FormField
+            label="Business Name *"
+            containerStyle={styles.inputGroup}
+            value={businessName}
+            onChangeText={setBusinessName}
+            placeholder="e.g., Joe's Coffee Shop"
+          />
+
+          {/* Category Dropdown */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Business Category *</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setShowCategoryDropdown(true)}
+            >
+              <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
+                {category
+                  ? CATEGORIES.find(c => c.value === category)?.label || customCategory
+                  : 'Select a category'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Custom Category Input (if "Other" selected) */}
+          {category === 'other' && (
+            <FormField
+              label="Specify Your Category *"
+              containerStyle={styles.inputGroup}
+              value={customCategory}
+              onChangeText={setCustomCategory}
+              placeholder="e.g., Pet Services, Agriculture, etc."
+            />
+          )}
+
+          {/* Description */}
+          <FormField
+            label="Business Description (Optional)"
+            containerStyle={styles.inputGroup}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Tell customers about your business and services..."
+            multiline
+          />
+        </Section>
+
+        {/* Section 2 — Contact & verification */}
+        <Section title="Contact & verification" subtitle="We verify your email before activating payments">
+          {/* Owner/Contact Name */}
+          <FormField
+            label="Owner/Contact Person *"
+            containerStyle={styles.inputGroup}
+            value={ownerName}
+            onChangeText={setOwnerName}
+            placeholder="Full name of owner or manager"
+          />
+
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Business Email *</Text>
+            <View style={styles.inputWithButton}>
+              <TextInput
+                style={[styles.input, styles.inputWithVerify]}
+                value={email}
+                onChangeText={handleEmailChange}
+                placeholder="contact@yourbusiness.com"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!emailVerified}
+              />
+              {emailVerified ? (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.verifyButton, emailOTPLoading && styles.buttonDisabled]}
+                  onPress={handleSendEmailOTP}
+                  disabled={emailOTPLoading}
+                >
+                  {emailOTPLoading ? (
+                    <ActivityIndicator size="small" color={COLORS.card} />
+                  ) : (
+                    <Text style={styles.verifyButtonText}>Send code</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+            {!emailVerified && (
+              <Text style={styles.fieldHint}>Required — verify to enable merchant payments.</Text>
             )}
           </View>
-        </View>
 
-        {/* Phone Number */}
-        <FormField
-          label="Contact Phone Number *"
-          containerStyle={styles.inputGroup}
-          value={phoneNumber}
-          onChangeText={handlePhoneNumberChange}
-          placeholder="+1234567890"
-          keyboardType="phone-pad"
-          maxLength={MERCHANT_PHONE_MAX_DIGITS + 1}
-        />
-
-        {/* Business Address */}
-        <FormField
-          label="Business Address *"
-          containerStyle={styles.inputGroup}
-          value={businessAddress}
-          onChangeText={setBusinessAddress}
-          placeholder="Street address, City, State, ZIP"
-          multiline
-        />
-
-        {/* Business Registration Number (Optional) */}
-        <FormField
-          label="Business Registration Number (Optional)"
-          containerStyle={styles.inputGroup}
-          value={businessRegistrationNumber}
-          onChangeText={setBusinessRegistrationNumber}
-          placeholder="Tax ID or Business License Number"
-        />
-
-        {/* Category Dropdown */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Business Category *</Text>
-          <TouchableOpacity
-            style={styles.dropdown}
-            onPress={() => setShowCategoryDropdown(true)}
-          >
-            <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
-              {category
-                ? CATEGORIES.find(c => c.value === category)?.label || customCategory
-                : 'Select a category'}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Custom Category Input (if "Other" selected) */}
-        {category === 'other' && (
+          {/* Phone Number */}
           <FormField
-            label="Specify Your Category *"
+            label="Contact Phone Number *"
             containerStyle={styles.inputGroup}
-            value={customCategory}
-            onChangeText={setCustomCategory}
-            placeholder="e.g., Pet Services, Agriculture, etc."
+            value={phoneNumber}
+            onChangeText={handlePhoneNumberChange}
+            placeholder="+1234567890"
+            keyboardType="phone-pad"
+            maxLength={MERCHANT_PHONE_MAX_DIGITS + 1}
           />
-        )}
 
-        {/* Description */}
-        <FormField
-          label="Business Description (Optional)"
-          containerStyle={styles.inputGroup}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Tell customers about your business and services..."
-          multiline
+          {/* Business Address */}
+          <FormField
+            label="Business Address *"
+            containerStyle={styles.inputGroup}
+            value={businessAddress}
+            onChangeText={setBusinessAddress}
+            placeholder="Street address, City, State, ZIP"
+            multiline
+          />
+
+          {/* Business Registration Number (Optional) */}
+          <FormField
+            label="Business Registration Number (Optional)"
+            containerStyle={styles.inputGroup}
+            value={businessRegistrationNumber}
+            onChangeText={setBusinessRegistrationNumber}
+            placeholder="Tax ID or Business License Number"
+          />
+        </Section>
+
+        <InfoBanner
+          variant="info"
+          icon="git-network-outline"
+          message="After you register, we sync your account to the C-Pay payment contract so your QR codes can accept payments. You can retry the sync from your dashboard if it doesn't finish."
+          style={styles.inputGroup}
         />
 
         <Button
@@ -623,6 +641,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: SPACING.sm,
+  },
+  fieldHint: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
   },
   input: {
     backgroundColor: COLORS.card,
