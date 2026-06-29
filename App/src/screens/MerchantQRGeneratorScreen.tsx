@@ -8,7 +8,6 @@ import {
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
@@ -16,8 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { getMerchantProfile } from '../services/merchant';
 import { MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } from '../utils/currency';
 import { generatePaymentQRWithId } from '../utils/qrCode';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
-import { Screen, Header, AmountInput, Button } from '../components';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
+import { Screen, Header, AmountInput, Button, MerchantQRCard, MerchantQRActions } from '../components';
 import { AlertManager } from '../utils/alert';
 import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 
@@ -39,7 +38,6 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
   const [qrValue, setQRValue] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [merchantId, setMerchantId] = useState<string | null>(null);
-  const qrRef = useRef<any>(null);
   const viewShotRef = useRef<ViewShot>(null);
 
   useEffect(() => {
@@ -195,10 +193,10 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
 
                 <AmountInput
                   containerStyle={styles.inputGroup}
-                  label={`Amount (${MONEY_UNIT_LABEL}) *`}
+                  label="Amount to request"
                   value={amount}
                   onChangeText={setAmount}
-                  helper="The exact amount customers will pay"
+                  helper={`Amount in ${MONEY_UNIT_LABEL}. Leave blank for an open QR the customer fills in.`}
                 />
 
                 <Button
@@ -215,64 +213,25 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
           </View>
         ) : (
           <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }}>
-            <View style={styles.qrCard}>
-              {/* Business Info Header */}
-              <View style={styles.businessHeader}>
-                {logoUrl ? (
-                  <Image source={{ uri: logoUrl }} style={styles.businessLogo} onError={() => setLogoUrl(null)} />
-                ) : (
-                  <Image source={DEFAULT_MERCHANT_LOGO} style={styles.businessLogo} />
-                )}
-                <Text style={styles.qrLabel}>{businessName}</Text>
-              </View>
-
-              {/* QR Code with App Logo */}
-              <View style={styles.qrBox}>
-                <QRCode 
-                  value={qrValue} 
-                  size={250}
-                  logo={require('../../assets/cpay_logo.png')}
-                  logoSize={45}
-                  logoBackgroundColor="white"
-                  logoMargin={2}
-                  getRef={(ref) => (qrRef.current = ref)}
-                />
-              </View>
-
-              {amount && (
-                <Text style={styles.qrAmount}>{formatMoneyAmount(parseFloat(amount))}</Text>
-              )}
-            </View>
+            <MerchantQRCard
+              businessName={businessName}
+              qrValue={qrValue}
+              logoUrl={logoUrl}
+              amountLabel={amount && parseFloat(amount) > 0 ? formatMoneyAmount(parseFloat(amount)) : undefined}
+              footerText={amount && parseFloat(amount) > 0 ? 'Scan with C-Pay to pay' : 'Scan with C-Pay — enter any amount'}
+              onLogoError={() => setLogoUrl(null)}
+            />
           </ViewShot>
         )}
 
         {generatedQR && (
           <View style={styles.actionsContainer}>
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleDownload}
-              >
-                <Ionicons name="download-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.actionButtonText}>Download</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleShare}
-              >
-                <Ionicons name="share-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.actionButtonText}>Share</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={resetForm}
-              >
-                <Ionicons name="add-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.actionButtonText}>New QR</Text>
-              </TouchableOpacity>
-            </View>
+            <MerchantQRActions
+              style={styles.actionsRow}
+              onShare={handleShare}
+              onDownload={handleDownload}
+              onNew={resetForm}
+            />
 
             <View style={styles.instructionsBox}>
               <View style={styles.instructionsTitleRow}>
@@ -319,10 +278,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.border,
   },
-  emoji: {
-    fontSize: 64,
-    marginBottom: SPACING.md,
-  },
   title: {
     fontSize: FONT_SIZES.xxl,
     fontWeight: '800',
@@ -336,15 +291,12 @@ const styles = StyleSheet.create({
   },
   form: {
   },
-  qrCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.xl,
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
   actionsContainer: {
     alignItems: 'center',
+  },
+  actionsRow: {
+    width: '100%',
+    marginBottom: SPACING.lg,
   },
   businessNameCard: {
     backgroundColor: COLORS.primary,
@@ -366,86 +318,6 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: SPACING.lg,
-  },
-  exampleBox: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
-  exampleTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  exampleText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-  },
-  qrContainer: {
-    alignItems: 'center',
-  },
-  businessHeader: {
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  businessLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: SPACING.sm,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-  },
-  qrBox: {
-    backgroundColor: '#fff',
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    ...SHADOWS.md,
-    marginBottom: SPACING.lg,
-  },
-  qrLabel: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  qrAmount: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  qrAssetAmount: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginBottom: SPACING.lg,
-  },
-  actions: {
-    flexDirection: 'row',
-    width: '100%',
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginHorizontal: SPACING.xs,
-    gap: 6,
-  },
-  actionButtonText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.text,
   },
   instructionsBox: {
     backgroundColor: COLORS.card,

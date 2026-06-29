@@ -13,18 +13,28 @@ import {
   getMerchantProfile,
   getMerchantAnalytics,
   getMerchantTransactions,
+  getContractSyncState,
+  syncMerchantContract,
+  merchantEvents,
   type MerchantTransaction,
 } from '../services/merchant';
-import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
-import { formatINR, formatMoneyBalance, convertAssetToINR } from '../utils/currency';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { formatMoneyBalance } from '../utils/currency';
 import { formatDateShort } from '../utils/date';
-import { TransactionDetailModal, Screen, Header, Section } from '../components';
+import { TransactionDetailModal, Screen, Header, Section, ActionRow, Button } from '../components';
 import type { TransactionDetail } from '../components/TransactionDetailModal';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash } from '../services/blockchain';
+import { AlertManager } from '../utils/alert';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
 const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
+
+const TX_STATUS = {
+  success: { label: 'Confirmed', color: COLORS.success, bg: COLORS.successBg },
+  pending: { label: 'Pending', color: COLORS.warning, bg: COLORS.warningBg },
+  failed: { label: 'Failed', color: COLORS.error, bg: COLORS.errorBg },
+} as const;
 
 // Helper component to display sender info with C-Pay ID
 const SenderInfo: React.FC<{ fromAddress: string; senderName?: string }> = ({ fromAddress, senderName }) => {
@@ -61,6 +71,9 @@ export const MerchantDashboardScreen: React.FC<
   const [businessName, setBusinessName] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
+  const [merchantId, setMerchantId] = useState<string | null>(null);
+  const [contractSynced, setContractSynced] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [totalRevenue, setTotalRevenue] = useState('0');
   const [totalTransactions, setTotalTransactions] = useState(0);
   const [successCount, setSuccessCount] = useState(0);
@@ -75,30 +88,31 @@ export const MerchantDashboardScreen: React.FC<
 
   const loadDashboard = async () => {
     try {
-      const walletAddress = await AsyncStorage.getItem('wallet_address');
-      if (!walletAddress) return;
+      const wallet = await AsyncStorage.getItem('wallet_address');
+      if (!wallet) return;
 
-      setWalletAddress(walletAddress);
+      setWalletAddress(wallet);
+      setContractSynced(await getContractSyncState());
 
       // Load merchant profile
-      const profile = await getMerchantProfile(walletAddress);
-      let merchantId = await AsyncStorage.getItem('merchant_id');
+      const profile = await getMerchantProfile(wallet);
+      let resolvedMerchantId = await AsyncStorage.getItem('merchant_id');
       if (profile) {
         setBusinessName(profile.business_name);
         setLogoUrl(profile.logo_url && profile.logo_url !== 'default-merchant-logo' ? profile.logo_url : null);
-        merchantId = profile.id || merchantId;
+        resolvedMerchantId = profile.id || resolvedMerchantId;
       }
+      setMerchantId(resolvedMerchantId);
 
       // Load analytics
-      if (merchantId) {
-        const analytics = await getMerchantAnalytics(merchantId);
+      if (resolvedMerchantId) {
+        const analytics = await getMerchantAnalytics(resolvedMerchantId);
         setTotalRevenue(analytics.totalRevenue);
         setTotalTransactions(analytics.totalTransactions);
         setSuccessCount(analytics.successTransactions || 0);
         setPendingCount(analytics.pendingTransactions);
 
-        // Load recent transactions
-        const transactions = await getMerchantTransactions(merchantId, 10);
+        const transactions = await getMerchantTransactions(resolvedMerchantId, 10);
         setRecentTransactions(transactions);
       }
     } catch (error) {
@@ -114,156 +128,215 @@ export const MerchantDashboardScreen: React.FC<
     loadDashboard();
   };
 
+  // Recovery path for failed on-chain contract sync.
+  const handleRetrySync = async () => {
+    if (!merchantId || !walletAddress || syncing) return;
+    setSyncing(true);
+    const result = await syncMerchantContract(merchantId, walletAddress);
+    setSyncing(false);
+    if (result.success) {
+      setContractSynced(true);
+      merchantEvents.emit('merchantRegistered');
+      AlertManager.alert('Synced', 'Your merchant account is now ready to accept QR payments.', undefined, { type: 'success' });
+    } else {
+      AlertManager.alert(
+        'Sync Failed',
+        result.error || 'Could not complete contract sync. Please try again in a moment.',
+        undefined,
+        { type: 'error' }
+      );
+    }
+  };
+
+  const goToShowQR = () => navigation.navigate('MerchantGlobalQR');
+  const goToCreateQR = () => navigation.navigate('MerchantQRGenerator');
+
   return (
     <Screen
       loading={loading}
-      header={
-        <Header
-          title="Merchant Dashboard"
-          onBack={() => navigation.goBack()}
-          right={
-            <View style={styles.settingsButton}>
-              <Ionicons name="settings-outline" size={24} color={COLORS.textSecondary} />
-            </View>
-          }
-        />
-      }
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
+      header={<Header title="Merchant Dashboard" onBack={() => navigation.goBack()} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
     >
-        {/* Welcome Header */}
-        <View style={styles.header}>
-          <Image
-            source={logoUrl ? { uri: logoUrl } : DEFAULT_MERCHANT_LOGO}
-            style={styles.businessLogo}
-            onError={() => setLogoUrl(null)}
-          />
-          <View style={styles.headerText}>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.businessName} numberOfLines={2}>{businessName}</Text>
-          </View>
+      {/* Welcome */}
+      <View style={styles.welcome}>
+        <Image
+          source={logoUrl ? { uri: logoUrl } : DEFAULT_MERCHANT_LOGO}
+          style={styles.businessLogo}
+          onError={() => setLogoUrl(null)}
+        />
+        <View style={styles.welcomeText}>
+          <Text style={styles.greeting}>Welcome back,</Text>
+          <Text style={styles.businessName} numberOfLines={2}>{businessName || 'Merchant'}</Text>
         </View>
-
-        {/* Top Row - QR Code and Revenue side by side */}
-        <View style={styles.topRowContainer}>
-          {/* Global Merchant QR Code */}
-          <TouchableOpacity
-            style={styles.globalQRCard}
-            onPress={() => navigation.navigate('MerchantGlobalQR')}
-          >
-            <Ionicons name="qr-code-outline" size={30} color={COLORS.card} style={styles.globalQRIcon} />
-            <Text style={styles.globalQRTitle}>My Payment QR Code</Text>
-            <Text style={styles.globalQRSubtitle}>
-              Tap to view your merchant QR code
-            </Text>
-          </TouchableOpacity>
-
-          {/* Total Revenue */}
-          <View style={styles.revenueCard}>
-            <View style={styles.analyticsLabelRow}>
-              <Ionicons name="trending-up-outline" size={14} color="#fff" />
-              <Text style={styles.analyticsLabel}>Total Revenue</Text>
-            </View>
-            <Text style={styles.revenueValue}>{formatINR(convertAssetToINR(parseFloat(totalRevenue)))}</Text>
-            <Text style={styles.revenueSubValue}>Pilot credit rail</Text>
-          </View>
-        </View>
-
-        {/* Bottom Row - 3 Stats in a single row */}
-        <View style={styles.statsRowContainer}>
-          <View style={[styles.statCard, { backgroundColor: '#3b82f6' }]}>
-            <Text style={styles.analyticsLabel}>Transactions</Text>
-            <Text style={styles.statValue}>{totalTransactions}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#10b981' }]}>
-            <Text style={styles.analyticsLabel}>Successful</Text>
-            <Text style={styles.statValue}>{successCount}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: '#f59e0b' }]}>
-            <Text style={styles.analyticsLabel}>Pending</Text>
-            <Text style={styles.statValue}>{pendingCount}</Text>
-          </View>
-        </View>
-
-      {/* Generate QR Button */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          style={styles.generateQRButton}
-          onPress={() => navigation.navigate('MerchantQRGenerator')}
-        >
-          <Ionicons name="qr-code-outline" size={24} color="#fff" />
-          <Text style={styles.generateQRButtonText}>Generate Payment QR</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Transaction History */}
+      {/* Revenue hero */}
+      <View style={styles.revenueCard}>
+        <View style={styles.revenueLabelRow}>
+          <Ionicons name="trending-up-outline" size={16} color={COLORS.textInverse} />
+          <Text style={styles.revenueLabel}>Total revenue</Text>
+        </View>
+        <Text style={styles.revenueValue}>{formatMoneyBalance(parseFloat(totalRevenue))}</Text>
+        <View style={styles.settlementRow}>
+          <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.textInverse} />
+          <Text style={styles.settlementText}>Settled on Stellar testnet</Text>
+        </View>
+      </View>
+
+      {/* Stats */}
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{totalTransactions}</Text>
+          <Text style={styles.statLabel}>Payments</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.success }]}>{successCount}</Text>
+          <Text style={styles.statLabel}>Confirmed</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: COLORS.warning }]}>{pendingCount}</Text>
+          <Text style={styles.statLabel}>Pending</Text>
+        </View>
+      </View>
+
+      {/* Business status */}
+      <Section title="Business status">
+        <View style={styles.card}>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="checkmark-circle"
+            iconColor={COLORS.success}
+            iconBackground={COLORS.successBg}
+            title="Verified merchant"
+            subtitle="Email verified during registration"
+          />
+          <View style={styles.divider} />
+          {contractSynced ? (
+            <ActionRow
+              style={styles.rowFlat}
+              icon="git-network-outline"
+              iconColor={COLORS.success}
+              iconBackground={COLORS.successBg}
+              title="Contract synced"
+              subtitle="Connected to the C-Pay payment contract"
+            />
+          ) : (
+            <ActionRow
+              style={styles.rowFlat}
+              icon="alert-circle"
+              iconColor={COLORS.warning}
+              iconBackground={COLORS.warningBg}
+              title="Contract sync incomplete"
+              subtitle="Finish sync so QR payments can settle"
+              right={
+                <Button
+                  title={syncing ? 'Syncing…' : 'Retry'}
+                  onPress={handleRetrySync}
+                  variant="primary"
+                  size="sm"
+                  loading={syncing}
+                  disabled={syncing}
+                />
+              }
+            />
+          )}
+          <View style={styles.divider} />
+          <ActionRow
+            style={styles.rowFlat}
+            icon={contractSynced ? 'qr-code' : 'qr-code-outline'}
+            iconColor={contractSynced ? COLORS.success : COLORS.textTertiary}
+            iconBackground={contractSynced ? COLORS.successBg : COLORS.background}
+            title="QR payments"
+            subtitle={contractSynced ? 'Ready to accept payments' : 'Not ready until contract sync completes'}
+          />
+        </View>
+      </Section>
+
+      {/* QR actions */}
+      <Section title="Get paid">
+        <View style={styles.card}>
+          <ActionRow
+            style={styles.rowFlat}
+            icon="qr-code-outline"
+            title="Show payment QR"
+            subtitle="Display your QR for customers to scan"
+            onPress={goToShowQR}
+          />
+          <View style={styles.divider} />
+          <ActionRow
+            style={styles.rowFlat}
+            icon="add-circle-outline"
+            title="Create payment QR"
+            subtitle="Request a specific amount"
+            onPress={goToCreateQR}
+          />
+        </View>
+      </Section>
+
+      {/* Payments received */}
       <Section
-        title="Payments Received"
-        subtitle="Recent 10 transactions"
+        title="Payments received"
+        subtitle={recentTransactions.length > 0 ? 'Recent 10 transactions' : undefined}
         actionLabel={recentTransactions.length > 0 ? 'View All' : undefined}
         onActionPress={() => navigation.navigate('MerchantTransactions')}
       >
         {recentTransactions.length === 0 ? (
-          <View style={styles.emptyTransactions}>
-            <Ionicons name="receipt-outline" size={40} color={COLORS.textTertiary} style={styles.emptyTxEmoji} />
-            <Text style={styles.emptyTxText}>No transactions yet</Text>
-            <Text style={styles.emptyTxSubtext}>Transactions will appear here when customers pay you</Text>
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="receipt-outline" size={32} color={COLORS.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No payments yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Share your payment QR to receive your first payment.
+            </Text>
+            <Button
+              title="Show my QR"
+              onPress={goToShowQR}
+              variant="primary"
+              size="md"
+              style={styles.emptyButton}
+            />
           </View>
         ) : (
           <View style={styles.transactionsList}>
-            {recentTransactions.map((tx) => (
-              <TouchableOpacity 
-                key={tx.id} 
-                style={styles.transactionCard}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setSelectedTransaction({
-                    ...tx,
-                    transaction_type: 'merchant',
-                  });
-                  setShowTransactionModal(true);
-                }}
-              >
-                <View style={styles.transactionHeader}>
-                  <View style={styles.transactionInfo}>
-                    <View style={styles.transactionHashRow}>
-                      <Text style={styles.transactionId}>{formatTransactionHash(tx.tx_hash)}</Text>
-                      <Ionicons name="open-outline" size={13} color={COLORS.primary} />
+            {recentTransactions.map((tx) => {
+              const status = TX_STATUS[tx.status] || TX_STATUS.pending;
+              return (
+                <TouchableOpacity
+                  key={tx.id}
+                  style={styles.transactionCard}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setSelectedTransaction({ ...tx, transaction_type: 'merchant' });
+                    setShowTransactionModal(true);
+                  }}
+                >
+                  <View style={styles.transactionHeader}>
+                    <View style={styles.transactionInfo}>
+                      <View style={styles.transactionHashRow}>
+                        <Text style={styles.transactionId}>{formatTransactionHash(tx.tx_hash)}</Text>
+                        <Ionicons name="open-outline" size={13} color={COLORS.primary} />
+                      </View>
+                      <Text style={styles.transactionDate}>{formatDateShort(tx.created_at)}</Text>
                     </View>
-                    <Text style={styles.transactionDate}>
-                      {formatDateShort(tx.created_at)}
-                    </Text>
+                    <View style={styles.transactionAmountContainer}>
+                      <Text style={styles.transactionAmount}>+{formatMoneyBalance(parseFloat(tx.amount))}</Text>
+                      <Text style={styles.transactionAmountSub}>Stellar settlement</Text>
+                    </View>
                   </View>
-                  <View style={styles.transactionAmountContainer}>
-                    <Text style={styles.transactionAmount}>+{formatMoneyBalance(parseFloat(tx.amount))}</Text>
-                    <Text style={styles.transactionAmountINR}>Stellar settlement</Text>
+                  <View style={styles.transactionFooter}>
+                    <SenderInfo fromAddress={tx.from_address} senderName={tx.sender_name} />
+                    <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                      <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.transactionFooter}>
-                  <SenderInfo fromAddress={tx.from_address} senderName={tx.sender_name} />
-                  <View style={[
-                    styles.statusBadge,
-                    tx.status === 'success' ? styles.statusSuccess : 
-                    tx.status === 'pending' ? styles.statusPending : styles.statusFailed
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      tx.status === 'success' ? styles.statusTextSuccess : 
-                      tx.status === 'pending' ? styles.statusTextPending : styles.statusTextFailed
-                    ]}>
-                      {tx.status === 'success' ? 'Success' : 
-                       tx.status === 'pending' ? 'Pending' : 'Failed'}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </Section>
 
-      {/* Transaction Detail Modal */}
       <TransactionDetailModal
         visible={showTransactionModal}
         transaction={selectedTransaction}
@@ -279,79 +352,11 @@ export const MerchantDashboardScreen: React.FC<
 };
 
 const styles = StyleSheet.create({
-  settingsButton: {
-    padding: SPACING.xs,
-  },
-  topRowContainer: {
-    flexDirection: 'row',
-    marginBottom: SPACING.md,
-    gap: SPACING.sm,
-  },
-  globalQRCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    padding: SPACING.md,
-    borderRadius: 12,
-  },
-  globalQRIcon: {
-    marginBottom: SPACING.xs,
-  },
-  globalQRTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.card,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  globalQRSubtitle: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.card,
-    opacity: 0.9,
-    textAlign: 'center',
-  },
-  revenueCard: {
-    flex: 1,
-    backgroundColor: '#10b981',
-    padding: SPACING.md,
-    borderRadius: 12,
-    justifyContent: 'center',
-  },
-  revenueValue: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: SPACING.xs,
-  },
-  revenueSubValue: {
-    fontSize: FONT_SIZES.xs,
-    color: '#fff',
-    opacity: 0.85,
-    marginTop: 2,
-  },
-  statsRowContainer: {
-    flexDirection: 'row',
-    marginBottom: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  statCard: {
-    flex: 1,
-    padding: SPACING.md,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: SPACING.xs,
-  },
-  header: {
+  welcome: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   businessLogo: {
     width: 56,
@@ -361,7 +366,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
   },
-  headerText: {
+  welcomeText: {
     flex: 1,
   },
   greeting: {
@@ -370,173 +375,123 @@ const styles = StyleSheet.create({
   },
   businessName: {
     fontSize: FONT_SIZES.xxl,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: COLORS.text,
   },
-  analyticsLabel: {
-    fontSize: FONT_SIZES.xs,
-    color: '#fff',
+  revenueCard: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.md,
+  },
+  revenueLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  revenueLabel: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textInverse,
     opacity: 0.9,
     fontWeight: '600',
   },
-  analyticsLabelRow: {
+  revenueValue: {
+    fontSize: FONT_SIZES.display,
+    fontWeight: '800',
+    color: COLORS.textInverse,
+    marginTop: SPACING.xs,
+  },
+  settlementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
   },
-  section: {
-    marginBottom: SPACING.md,
-  },
-  addButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: 6,
-  },
-  addButtonText: {
-    color: COLORS.card,
-    fontWeight: '600',
+  settlementText: {
     fontSize: FONT_SIZES.xs,
+    color: COLORS.textInverse,
+    opacity: 0.85,
   },
-  emptyState: {
-    alignItems: 'center',
-    padding: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+  statsRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.xl,
   },
-  emptyEmoji: {
-    fontSize: 32,
-    marginBottom: SPACING.xs,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  emptySubtext: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
-  createButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: COLORS.card,
-    fontWeight: '600',
-  },
-  qrList: {
-  },
-  qrCard: {
-    backgroundColor: COLORS.card,
-    padding: SPACING.sm,
-    borderRadius: 10,
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.xs,
-  },
-  qrCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
     alignItems: 'center',
-    marginBottom: SPACING.xs,
   },
-  qrInfo: {
-    flex: 1,
-  },
-  qrName: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
+  statValue: {
+    fontSize: FONT_SIZES.xxl,
+    fontWeight: '800',
     color: COLORS.text,
   },
-  qrAmount: {
-    fontSize: FONT_SIZES.sm,
+  statLabel: {
+    fontSize: FONT_SIZES.xs,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  toggleButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: 6,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#10b981',
-  },
-  toggleButtonInactive: {
-    backgroundColor: COLORS.border,
-  },
-  toggleText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
-  },
-  toggleTextActive: {
-    color: '#fff',
-  },
-  toggleTextInactive: {
-    color: COLORS.textSecondary,
-  },
-  qrStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  qrStat: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-  },
-  viewLink: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  generateQRButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    padding: SPACING.md,
-    borderRadius: 12,
-    gap: 10,
-  },
-  generateQRButtonText: {
-    fontSize: FONT_SIZES.md,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  emptyTransactions: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xl,
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
+    paddingHorizontal: SPACING.sm,
   },
-  emptyTxEmoji: {
-    marginBottom: SPACING.sm,
+  rowFlat: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
   },
-  emptyTxText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.sm,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.xl,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  emptyTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
     color: COLORS.text,
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
   },
-  emptyTxSubtext: {
+  emptySubtitle: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    paddingHorizontal: SPACING.lg,
+    lineHeight: 20,
+    paddingHorizontal: SPACING.md,
+  },
+  emptyButton: {
+    marginTop: SPACING.lg,
   },
   transactionsList: {
     gap: SPACING.sm,
   },
   transactionCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -560,7 +515,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '700',
     color: COLORS.primary,
-    marginBottom: 2,
   },
   transactionDate: {
     fontSize: FONT_SIZES.xs,
@@ -572,9 +526,9 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
-    color: '#10b981',
+    color: COLORS.success,
   },
-  transactionAmountINR: {
+  transactionAmountSub: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.textSecondary,
   },
@@ -591,74 +545,10 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  statusPending: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-  },
-  statusFailed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: BORDER_RADIUS.sm,
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
-  },
-  statusTextSuccess: {
-    color: '#10b981',
-  },
-  statusTextPending: {
-    color: '#f59e0b',
-  },
-  statusTextFailed: {
-    color: '#ef4444',
-  },
-  quickActionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    padding: SPACING.md,
-    borderRadius: 12,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  quickActionEmoji: {
-    fontSize: 28,
-    marginRight: SPACING.md,
-  },
-  quickActionContent: {
-    flex: 1,
-  },
-  quickActionTitle: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  quickActionSubtitle: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-  },
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    padding: SPACING.sm,
-    borderRadius: 10,
-    marginBottom: SPACING.xs,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  actionIcon: {
-    fontSize: 20,
-    marginRight: SPACING.sm,
-  },
-  actionText: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 });
