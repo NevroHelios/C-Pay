@@ -24,6 +24,7 @@ interface PaymentFailureScreenProps {
       errorMessage?: string;
       errorReason?: string;
       errorCode?: string;
+      category?: 'retryable' | 'support';
       timestamp?: string;
     };
   };
@@ -40,8 +41,11 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
     errorMessage = 'Transaction failed',
     errorReason = 'Unable to complete the transaction. Please try again.',
     errorCode,
+    category = 'retryable',
     timestamp,
   } = route.params;
+
+  const needsSupport = category === 'support';
 
   const [currentTime] = React.useState(
     timestamp || new Date().toLocaleString('en-US', {
@@ -163,6 +167,16 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
             </View>
             <Text style={styles.compactTitle}>Payment Failed</Text>
             <Text style={styles.compactSubtitle}>{errorMessage}</Text>
+            <View style={styles.statusChip}>
+              <Ionicons
+                name={needsSupport ? 'help-buoy-outline' : 'refresh-outline'}
+                size={13}
+                color={COLORS.textInverse}
+              />
+              <Text style={styles.statusChipText}>
+                {needsSupport ? 'Action needed' : 'You can retry this payment'}
+              </Text>
+            </View>
           </Animated.View>
 
           {/* Error Reason & Transaction Summary */}
@@ -221,31 +235,63 @@ export const PaymentFailureScreen: React.FC<PaymentFailureScreenProps> = ({
               },
             ]}
           >
-            <TouchableOpacity
-              style={styles.tryAgainButton}
-              onPress={handleTryAgain}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.tryAgainButtonText}>Try Again</Text>
-            </TouchableOpacity>
+            {needsSupport ? (
+              <>
+                <TouchableOpacity
+                  style={styles.tryAgainButton}
+                  onPress={handleContactSupport}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.tryAgainButtonText}>Get Help</Text>
+                </TouchableOpacity>
 
-            <View style={styles.secondaryButtonsRow}>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleContactSupport}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.secondaryButtonText}>Support</Text>
-              </TouchableOpacity>
+                <View style={styles.secondaryButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleTryAgain}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.secondaryButtonText}>Try Again</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleGoHome}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.secondaryButtonText}>Home</Text>
-              </TouchableOpacity>
-            </View>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleGoHome}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.secondaryButtonText}>Home</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.tryAgainButton}
+                  onPress={handleTryAgain}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.tryAgainButtonText}>Try Again</Text>
+                </TouchableOpacity>
+
+                <View style={styles.secondaryButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleContactSupport}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.secondaryButtonText}>Support</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={handleGoHome}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.secondaryButtonText}>Home</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </Animated.View>
         </View>
       </LinearGradient>
@@ -296,6 +342,24 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    alignSelf: 'center',
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  statusChipText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+    color: COLORS.textInverse,
   },
   summarySection: {
     flex: 1,

@@ -1,7 +1,38 @@
-type PaymentFailureCopy = {
+/**
+ * How the user can recover from a payment failure:
+ * - `retryable`: a plain retry is likely to succeed (network/timeout/service).
+ * - `support`: retrying won't help on its own — the user needs to fix
+ *   something (re-auth, merchant setup) or contact support.
+ */
+export type PaymentFailureCategory = 'retryable' | 'support';
+
+export type PaymentFailureCopy = {
   errorMessage: string;
   errorReason: string;
   errorCode?: string;
+  category: PaymentFailureCategory;
+};
+
+// Error codes / signals that a plain retry will not resolve.
+const SUPPORT_CODES = new Set([
+  'AUTH_REQUIRED',
+  'CONTRACT_MERCHANT_MISSING',
+  'CONTRACT_MERCHANT_INACTIVE',
+  'CONTRACT_MERCHANT_MISMATCH',
+  'CONTRACT_INTENT_SOURCE_MISMATCH',
+  'CONTRACT_INTENT_AMOUNT_MISMATCH',
+]);
+
+const classifyCategory = (errorCode: string | undefined, lowerMessage: string): PaymentFailureCategory => {
+  if (errorCode && SUPPORT_CODES.has(errorCode)) return 'support';
+  if (
+    lowerMessage.includes('jwt') ||
+    lowerMessage.includes('authentication') ||
+    lowerMessage.includes('does not match the contract intent amount')
+  ) {
+    return 'support';
+  }
+  return 'retryable';
 };
 
 const safeNoDeductionText = 'Your pilot credits are safe - no amount was deducted.';
@@ -22,7 +53,7 @@ const getErrorCode = (error: any): string | undefined => {
   return typeof code === 'string' && code.trim() ? code.trim() : undefined;
 };
 
-export const getPaymentFailureCopy = (error: any): PaymentFailureCopy => {
+const buildFailureCopy = (error: any): Omit<PaymentFailureCopy, 'category'> => {
   const rawMessage = getErrorText(error);
   const lowerMessage = rawMessage.toLowerCase();
   const errorCode = getErrorCode(error);
@@ -142,4 +173,11 @@ export const getPaymentFailureCopy = (error: any): PaymentFailureCopy => {
     errorReason: `The payment could not be completed. ${safeNoDeductionText} Please try again in a few moments.`,
     errorCode,
   };
+};
+
+export const getPaymentFailureCopy = (error: any): PaymentFailureCopy => {
+  const base = buildFailureCopy(error);
+  const errorCode = getErrorCode(error);
+  const lowerMessage = getErrorText(error).toLowerCase();
+  return { ...base, category: classifyCategory(errorCode, lowerMessage) };
 };

@@ -31,47 +31,47 @@ interface TransactionItemProps {
   currentWallet?: string;
 }
 
-// Helper function to get status configuration
+// Helper function to get status configuration.
+// Surfaces the distinct lifecycle states so users can tell apart a payment
+// that was just submitted, is pending network confirmation, is confirmed, or
+// has failed.
 const getStatusConfig = (status: string, internalStatus?: string) => {
-  // Phase 2: Invisible Rail - Simplified status labels (no blockchain jargon)
+  const submitted = {
+    label: 'Submitted',
+    icon: 'paper-plane-outline',
+    color: COLORS.infoDark,
+    bg: COLORS.infoBg,
+  };
+  const pending = {
+    label: 'Pending',
+    icon: 'time-outline',
+    color: COLORS.warningDark,
+    bg: COLORS.warningBg,
+  };
+  const confirmed = {
+    label: 'Confirmed',
+    icon: 'checkmark-circle',
+    color: COLORS.successDark,
+    bg: COLORS.successBg,
+  };
+  const failed = {
+    label: 'Failed',
+    icon: 'close-circle',
+    color: COLORS.errorDark,
+    bg: COLORS.errorBg,
+  };
+
   switch (status) {
     case 'success':
-      // Show different text based on internal status
-      if (internalStatus === 'confirmed') {
-        return {
-          label: 'Completed',
-          icon: 'checkmark-circle',
-          color: COLORS.successDark,
-          bg: COLORS.successBg,
-        };
-      } else if (internalStatus === 'submitted' || internalStatus === 'processing') {
-        return {
-          label: 'Processing',
-          icon: 'time-outline',
-          color: COLORS.warningDark,
-          bg: COLORS.warningBg,
-        };
-      }
-      return {
-        label: 'Completed',
-        icon: 'checkmark-circle',
-        color: COLORS.successDark,
-        bg: COLORS.successBg,
-      };
+      if (internalStatus === 'submitted') return submitted;
+      if (internalStatus === 'processing') return pending;
+      // 'confirmed' or legacy success with no internal status
+      return confirmed;
     case 'pending':
-      return {
-        label: 'Processing', // Changed from "Pending" to "Processing"
-        icon: 'time-outline',
-        color: COLORS.warningDark,
-        bg: COLORS.warningBg,
-      };
+      if (internalStatus === 'submitted') return submitted;
+      return pending;
     case 'failed':
-      return {
-        label: 'Failed',
-        icon: 'close-circle',
-        color: COLORS.errorDark,
-        bg: COLORS.errorBg,
-      };
+      return failed;
     default:
       return {
         label: 'Unknown',

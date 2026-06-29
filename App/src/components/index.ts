@@ -8,6 +8,8 @@ export { SuccessAnimation } from './SuccessAnimation';
 export { PINDialog } from './PINDialog';
 export { CustomAlert, CustomAlertProvider, showCustomAlert } from './CustomAlert';
 export { OnboardingProgress } from './OnboardingProgress';
+export { PaymentReviewSheet } from './PaymentReviewSheet';
+export type { PaymentReviewSheetProps } from './PaymentReviewSheet';
 
 // Reusable layout primitives (screen/component design system)
 export * from './layout';

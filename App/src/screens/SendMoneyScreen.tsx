@@ -22,6 +22,7 @@ import {
   AmountInput,
   InfoBanner,
   BottomActionBar,
+  PaymentReviewSheet,
 } from '../components';
 import { AlertManager } from '../utils/alert';
 import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount } from '../utils/currency';
@@ -50,6 +51,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const [hasPresetAmount, setHasPresetAmount] = useState<boolean>(false);
   const [fetchingRecipient, setFetchingRecipient] = useState<boolean>(false);
   const [recipientFetched, setRecipientFetched] = useState<boolean>(false);
+  const [showReview, setShowReview] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const paymentInProgress = useRef<boolean>(false);
   const networkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recipientLookupSeq = useRef<number>(0);
@@ -301,148 +304,150 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     return true;
   };
 
-  const handleSendMoney = async () => {
+  // Open the unified review sheet (shared by manual send and scan-to-pay).
+  const handleSendMoney = () => {
+    if (submitting || paymentInProgress.current) return;
     if (!validateInputs()) return;
+    setShowReview(true);
+  };
 
-    let effectiveMerchantId = merchantId;
-    let effectiveRecipientName = recipientName;
-    let effectiveRecipientCPayId = recipientCPayId;
+  // Executed after the user confirms in the review sheet. Performs wallet
+  // unlock and submits the payment, then routes to the processing/result flow.
+  const executePayment = async () => {
+    if (paymentInProgress.current) return;
 
+    const effectiveMerchantId = merchantId;
+    const effectiveRecipientName = recipientName;
+    const effectiveRecipientCPayId = recipientCPayId;
     const displayId = effectiveRecipientCPayId || formatWalletFingerprint(recipientAddress);
 
-    AlertManager.alert(
-      'Confirm Payment',
-      `Send ${formatMoneyAmount(parseFloat(amount))} to\n${displayId}${note ? `\n\nNote: ${note}` : ''}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    const timestamp = () =>
+      new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+    try {
+      setSubmitting(true);
+      // Close the review sheet BEFORE wallet unlock. The PIN dialog is itself a
+      // modal, and stacking modals fails on iOS — so we dismiss the sheet first
+      // and show the screen's own loading state during authentication/submit.
+      setShowReview(false);
+      paymentInProgress.current = true;
+
+      // Set timeout for slow network detection.
+      networkTimeoutRef.current = setTimeout(() => {
+        if (paymentInProgress.current) {
+          AlertManager.alert(
+            'Slow Network Detected',
+            'Your network connection is slow. The payment is still processing...',
+            [{ text: 'OK' }]
+          );
+        }
+      }, 10000);
+
+      const wallet = await getAuthenticatedWallet(
+        'Confirm Payment',
+        'Enter your 6-digit PIN to send pilot credits',
+        'Unlock wallet to send pilot credits'
+      );
+      if (!wallet) {
+        paymentInProgress.current = false;
+        if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
+        setSubmitting(false);
+        AlertManager.alert('Authentication Failed', 'Transaction cancelled');
+        return;
+      }
+
+      // Navigate to Processing screen immediately.
+      const startTime = Date.now();
+
+      navigation.replace('PaymentProcessing', {
+        amount: amount,
+        recipientName: effectiveRecipientName || displayId,
+        recipientAddress: recipientAddress.trim(),
+      });
+
+      const txHash = await transferTokens(
+        wallet,
+        recipientAddress.trim(),
+        amount,
         {
-          text: 'Send',
-          onPress: async () => {
-            try {
-              paymentInProgress.current = true;
+          merchantId: effectiveMerchantId,
+          note,
+        }
+      );
 
-              // Set timeout for slow network detection (5 seconds)
-              networkTimeoutRef.current = setTimeout(() => {
-                if (paymentInProgress.current) {
-                  AlertManager.alert(
-                    'Slow Network Detected',
-                    'Your network connection is slow. The payment is still processing...',
-                    [{ text: 'OK' }]
-                  );
-                }
-              }, 10000);
+      // Clear timeout on success
+      if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
+      paymentInProgress.current = false;
 
-              const wallet = await getAuthenticatedWallet(
-                'Confirm Payment',
-                'Enter your 6-digit PIN to send pilot credits',
-                'Unlock wallet to send pilot credits'
-              );
-              if (!wallet) {
-                paymentInProgress.current = false;
-                if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
-                AlertManager.alert('Authentication Failed', 'Transaction cancelled');
-                return;
-              }
+      // Calculate processing time
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
 
-              // Navigate to Processing screen immediately
-              const startTime = Date.now();
+      // Save transaction locally and sync to Supabase
+      const senderName = await AsyncStorage.getItem('user_name');
 
-              navigation.replace('PaymentProcessing', {
-                amount: amount,
-                recipientName: effectiveRecipientName || displayId,
-                recipientAddress: recipientAddress.trim(),
-              });
+      const transactionData = {
+        tx_hash: txHash,
+        to_address: recipientAddress.trim(),
+        from_address: walletAddress,
+        amount: amount,
+        status: 'pending' as const,
+        internal_status: 'submitted' as const,
+        // For merchant payments: merchant_name is business name, recipient_name is same
+        // For personal payments: recipient_name is the person's name (if available)
+        merchant_name: effectiveMerchantId ? effectiveRecipientName : undefined,
+        recipient_name: effectiveRecipientName || undefined,
+        sender_name: senderName || undefined,
+        note: note || undefined, // Separate note field
+        created_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
+        transaction_type: effectiveMerchantId ? 'merchant' as const : 'personal' as const,
+        merchant_id: effectiveMerchantId || undefined,
+      };
 
-              const txHash = await transferTokens(
-                wallet,
-                recipientAddress.trim(),
-                amount,
-                {
-                  merchantId: effectiveMerchantId,
-                  note,
-                }
-              );
+      saveTransaction(transactionData)
+        .then(() => console.log('✅ Transaction saved and synced'))
+        .catch(err => console.error('❌ Transaction save/sync error:', err));
 
-              // Clear timeout on success
-              if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
-              paymentInProgress.current = false;
+      // Navigate to Success screen
+      navigation.replace('PaymentSuccess', {
+        transactionHash: txHash,
+        fromAddress: walletAddress,
+        amount: amount,
+        recipientName: effectiveRecipientName || displayId,
+        recipientAddress: recipientAddress.trim(),
+        processingTime: processingTime || 2,
+        timestamp: timestamp(),
+        note: note || undefined,
+        isMerchantPayment: !!effectiveMerchantId,
+      });
+    } catch (error: any) {
+      paymentInProgress.current = false;
+      if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
+      setSubmitting(false);
+      setShowReview(false);
+      console.error('Send pilot credits error:', error);
 
-              // Calculate processing time
-              const processingTime = Math.round((Date.now() - startTime) / 1000);
+      const { errorMessage, errorReason, errorCode, category } = getPaymentFailureCopy(error);
 
-              // Save transaction locally and sync to Supabase
-              // Get sender's name from AsyncStorage
-              const senderName = await AsyncStorage.getItem('user_name');
-
-              const transactionData = {
-                tx_hash: txHash,
-                to_address: recipientAddress.trim(),
-                from_address: walletAddress,
-                amount: amount,
-                status: 'pending' as const,
-                // For merchant payments: merchant_name is business name, recipient_name is same
-                // For personal payments: recipient_name is the person's name (if available)
-                merchant_name: effectiveMerchantId ? effectiveRecipientName : undefined,
-                recipient_name: effectiveRecipientName || undefined,
-                sender_name: senderName || undefined,
-                note: note || undefined, // Separate note field
-                created_at: new Date().toISOString(),
-                transaction_type: effectiveMerchantId ? 'merchant' as const : 'personal' as const,
-                merchant_id: effectiveMerchantId || undefined,
-              };
-
-              saveTransaction(transactionData)
-                .then(() => console.log('✅ Transaction saved and synced'))
-                .catch(err => console.error('❌ Transaction save/sync error:', err));
-
-              // Navigate to Success screen
-              navigation.replace('PaymentSuccess', {
-                transactionHash: txHash,
-                fromAddress: walletAddress,
-                amount: amount,
-                recipientName: effectiveRecipientName || displayId,
-                recipientAddress: recipientAddress.trim(),
-                processingTime: processingTime || 2,
-                timestamp: new Date().toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true,
-                }),
-                note: note || undefined,
-                isMerchantPayment: !!effectiveMerchantId,
-              });
-            } catch (error: any) {
-              paymentInProgress.current = false;
-              if (networkTimeoutRef.current) clearTimeout(networkTimeoutRef.current);
-              console.error('Send pilot credits error:', error);
-
-              const { errorMessage, errorReason, errorCode } = getPaymentFailureCopy(error);
-
-              // Navigate to Failure screen
-              navigation.replace('PaymentFailure', {
-                amount: amount,
-                recipientName: effectiveRecipientName || displayId,
-                recipientAddress: recipientAddress.trim(),
-                errorMessage,
-                errorReason,
-                errorCode,
-                timestamp: new Date().toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true,
-                }),
-              });
-            }
-          },
-        },
-      ]
-    );
+      // Navigate to Failure screen
+      navigation.replace('PaymentFailure', {
+        amount: amount,
+        recipientName: effectiveRecipientName || displayId,
+        recipientAddress: recipientAddress.trim(),
+        errorMessage,
+        errorReason,
+        errorCode,
+        category,
+        timestamp: timestamp(),
+      });
+    }
   };
 
   const handlePasteAddress = async () => {
@@ -479,7 +484,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
 
   return (
     <Screen
-      loading={loading}
+      loading={loading || submitting}
       loadingText="Processing payment..."
       header={<Header title="Send Pilot Credits" onBack={handleBackPress} />}
       footer={
@@ -490,7 +495,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
             variant="primary"
             size="lg"
             fullWidth
-            disabled={!canSend}
+            disabled={!canSend || submitting}
           />
         </BottomActionBar>
       }
@@ -590,6 +595,21 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       <InfoBanner
         variant="info"
         message={`${PILOT_TESTNET_TEXT} Payments typically confirm in 5-10 seconds.`}
+      />
+
+      {/* Unified payment review (shared by manual send and scan-to-pay) */}
+      <PaymentReviewSheet
+        visible={showReview}
+        recipientName={recipientName}
+        cpayId={recipientCPayId || formatWalletFingerprint(recipientAddress)}
+        amount={amount}
+        note={note}
+        isMerchant={isMerchantPayment}
+        submitting={submitting}
+        onConfirm={executePayment}
+        onCancel={() => {
+          if (!submitting) setShowReview(false);
+        }}
       />
     </Screen>
   );
