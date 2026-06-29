@@ -23,7 +23,7 @@ interface OnboardingScreenProps {
 
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
   const handleGetStarted = () => {
-    navigation.navigate('PhoneVerification');
+    navigation.navigate('EmailVerification');
   };
 
   return (

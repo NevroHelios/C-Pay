@@ -41,7 +41,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
 
         if (!verificationComplete) {
           // Existing wallet but no active verification - show verification
-          navigation.replace('PhoneVerification');
+          navigation.replace('EmailVerification');
         } else {
           // User has wallet and verification complete, go to login
           navigation.replace('Login');
